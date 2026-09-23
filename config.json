@@ -1,40 +1,116 @@
 {
   "area_name": "Буча · Ірпінь · Гостомель",
   "timezone": "Europe/Kyiv",
-
-  "weather_point": { "lat": 50.545, "lon": 30.243 },
-
+  "weather_point": {
+    "lat": 50.545,
+    "lon": 30.243
+  },
   "alerts": {
     "oblast_uid": "14",
-    "match_words": ["Бучанськ", "Ірпін", "Гостомел", "Буча"],
+    "match_words": [
+      "Бучанськ",
+      "Ірпін",
+      "Гостомел",
+      "Буча"
+    ],
     "count_whole_oblast": true
   },
-
   "morning": {
     "hour": 7,
     "latest_hour": 11,
     "night_from_hour": 22
   },
-
   "weekly": {
     "weekday": 0,
     "hour": 9,
     "latest_hour": 14
   },
-
   "air": {
     "enabled": true,
     "aqi_threshold": 60,
     "from_hour": 7,
     "to_hour": 22
   },
-
   "weather_warnings": {
     "gusts_ms": 17,
     "heat_c": 32,
     "frost_c": -15,
     "precip_mm": 20
   },
-
-  "currencies": ["USD", "EUR"]
+  "currencies": [
+    "USD",
+    "EUR"
+  ],
+  "news": {
+    "enabled": false,
+    "query": "(Буча OR Ірпінь OR Гостомель) when:1d",
+    "from_hour": 8,
+    "to_hour": 22,
+    "max_age_hours": 24,
+    "max_per_run": 2,
+    "max_per_day": 8,
+    "must_match": [
+      "буч[аіуе]\\b",
+      "бучею\\b",
+      "бучанськ",
+      "ірпін",
+      "ірпен",
+      "гостомел"
+    ],
+    "stop_words": [
+      "футбол",
+      "матч",
+      "упл",
+      "чемпіонат",
+      "турнір",
+      "збірн",
+      "баскетбол",
+      "волейбол",
+      "гандбол",
+      "хокей",
+      "футзал",
+      "першість",
+      "кубок",
+      "ліга",
+      "тренер",
+      "спорт",
+      "фк ",
+      "бк ",
+      "гол ",
+      "перемог",
+      "поразк",
+      "нічия"
+    ],
+    "blocked_sources": [
+      "sport.ua",
+      "football.ua",
+      "ua-football.com",
+      "tribuna.com",
+      "isport.ua",
+      "xsport.ua",
+      "champion.com.ua",
+      "sportarena.com",
+      "sport-express",
+      "footboom"
+    ]
+  },
+  "cinema": {
+    "enabled": false,
+    "weekdays": [
+      4,
+      5
+    ],
+    "hour": 10,
+    "latest_hour": 14,
+    "cinemas": [
+      {
+        "name": "Filmax · Буча, ТРЦ Avenir Plaza",
+        "url": "https://m.vkino.com.ua/ua/cinema/bucha/filmax-bucha"
+      },
+      {
+        "name": "Перун · Ірпінь, ЕКО-маркет (Соборна, 105-А)",
+        "url": "https://m.vkino.com.ua/ua/cinema/irpen/perun-eco"
+      }
+    ]
+  }
 }

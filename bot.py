@@ -14,7 +14,7 @@
   CHAT_ID        — куди публікувати: @назва_каналу, або ваш числовий ID для тестів
   ALERTS_TOKEN   — токен alerts.in.ua (необов'язково: без нього блок тривог пропускається)
   DRY_RUN=1      — нічого не надсилати, лише надрукувати пост у лог
-  FORCE=morning|weekly|air — примусово зібрати пост зараз (для перевірки)
+  FORCE=morning|weekly|air|news|cinema — примусово зібрати пост зараз (для перевірки)
 """
 
 import html
@@ -424,6 +424,221 @@ def build_air_warning(a: dict) -> str:
             "літніх людей і тих, хто має проблеми з диханням.")
 
 
+# ───────────────────────────── новини ─────────────────────────────
+
+import re
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
+
+
+def fetch_news() -> list[dict]:
+    nc = CFG["news"]
+    r = HTTP.get("https://news.google.com/rss/search",
+                 params={"q": nc["query"], "hl": "uk", "gl": "UA", "ceid": "UA:uk"},
+                 timeout=TIMEOUT)
+    r.raise_for_status()
+    root = ET.fromstring(r.content)
+    items = []
+    for it in root.iter("item"):
+        src = it.find("source")
+        source = (src.text or "").strip() if src is not None else ""
+        source_url = src.get("url", "") if src is not None else ""
+        title = (it.findtext("title") or "").strip()
+        if source and title.endswith(" - " + source):
+            title = title[: -len(source) - 3].strip()
+        try:
+            pub = parsedate_to_datetime(it.findtext("pubDate")).astimezone(TZ)
+        except Exception:
+            pub = None
+        items.append({"title": title, "link": (it.findtext("link") or "").strip(),
+                      "id": (it.findtext("guid") or it.findtext("link") or title).strip(),
+                      "source": source, "source_url": source_url, "pub": pub})
+    return items
+
+
+def _words(t: str) -> set:
+    return {w for w in re.findall(r"\w+", t.lower()) if len(w) > 3}
+
+
+def similar(a: str, b: str) -> bool:
+    wa, wb = _words(a), _words(b)
+    if not wa or not wb:
+        return False
+    return len(wa & wb) / len(wa | wb) >= 0.5
+
+
+def select_news(items: list[dict], state: dict, now: datetime):
+    """Повертає (відібрані, відкинуті з причиною)."""
+    nc = CFG["news"]
+    must = [re.compile(p, re.I) for p in nc["must_match"]]
+    # стоп-слово = початок слова ("футбол" ловить "футболісти");
+    # з пробілом у кінці ("гол ") — лише ціле слово (щоб не ловити "голова")
+    stop = [re.compile(r"(?<!\w)" + re.escape(w.strip().lower()) + (r"\b" if w.endswith(" ") else ""))
+            for w in nc["stop_words"]]
+    seen = set(state.get("news_seen", []))
+    recent_titles = [t for t, ts in state.get("news_recent", [])
+                     if now.timestamp() - ts < 48 * 3600]
+    picked, rejected = [], []
+    for n in sorted(items, key=lambda x: x["pub"] or now):
+        t, tl = n["title"], n["title"].lower()
+        reason = None
+        if n["id"] in seen:
+            reason = "вже публікувалось"
+        elif not n["pub"] or (now - n["pub"]).total_seconds() > nc["max_age_hours"] * 3600:
+            reason = "старе"
+        elif any(b in n["source_url"].lower() or b in n["source"].lower() for b in nc["blocked_sources"]):
+            reason = "спортивне джерело"
+        elif any(p.search(tl) for p in stop):
+            reason = "спорт/стоп-слово"
+        elif not any(p.search(t) for p in must):
+            reason = "місто не в заголовку"
+        elif any(similar(t, x) for x in recent_titles + [p["title"] for p in picked]):
+            reason = "дубль"
+        if reason:
+            rejected.append((n, reason))
+        else:
+            picked.append(n)
+    return picked, rejected
+
+
+def format_news(n: dict) -> str:
+    when = f" · {n['pub']:%H:%M}" if n["pub"] else ""
+    return (f"📰 <b>{esc(n['title'])}</b>\n"
+            f"{esc(n['source'])}{when}\n"
+            f'<a href="{html.escape(n["link"], quote=True)}">Читати →</a>')
+
+
+def run_news(state: dict, now: datetime) -> None:
+    nc = CFG["news"]
+    today = now.date().isoformat()
+    picked, rejected = select_news(fetch_news(), state, now)
+
+    if FORCE == "news":  # режим перегляду: показати, що відібрано і чому відкинуто
+        print(f"\n=== ВІДІБРАНО: {len(picked)} ===")
+        for n in picked:
+            print(f"✅ [{n['pub']:%d.%m %H:%M}] {n['title']}  — {n['source']}")
+        print(f"\n=== ВІДКИНУТО: {len(rejected)} ===")
+        for n, why in rejected:
+            ts = f"{n['pub']:%d.%m %H:%M}" if n["pub"] else "?"
+            print(f"❌ ({why}) [{ts}] {n['title']}  — {n['source']}")
+        print()
+        if DRY_RUN:
+            return
+
+    if state.get("news_day") != today:
+        state["news_day"], state["news_today"] = today, 0
+    left = min(nc["max_per_run"], nc["max_per_day"] - state.get("news_today", 0))
+    seen = state.setdefault("news_seen", [])
+    recent = state.setdefault("news_recent", [])
+    for n in picked[:max(left, 0)]:
+        send(format_news(n))
+        seen.append(n["id"])
+        recent.append([n["title"], now.timestamp()])
+        state["news_today"] = state.get("news_today", 0) + 1
+        print(f"✓ новина: {n['title']}")
+    state["news_seen"] = seen[-500:]
+    state["news_recent"] = [x for x in recent if now.timestamp() - x[1] < 48 * 3600]
+
+
+# ───────────────────────────── кіно ─────────────────────────────
+
+from html.parser import HTMLParser
+
+TIME_RE = re.compile(r"^\s*([01]?\d|2[0-3]):[0-5]\d\s*$")
+DATE_RE = re.compile(r"(\d{1,2})\s+(січ|лют|бер|кві|тра|чер|лип|сер|вер|жов|лис|гру)\w*", re.I)
+FMT_RE = re.compile(r"^\s*(2D|3D|4DX|IMAX|ScreenX)\s*$", re.I)
+MONTH_BY_PREFIX = {p: i + 1 for i, p in enumerate(
+    ["січ", "лют", "бер", "кві", "тра", "чер", "лип", "сер", "вер", "жов", "лис", "гру"])}
+
+
+class VkinoParser(HTMLParser):
+    """Іде по сторінці кінотеатру vkino.com.ua згори вниз:
+    посилання на фільм (/show/...) задає поточний фільм, текст із датою — поточну дату,
+    посилання з текстом «ГГ:ХХ» — сеанс поточного фільму на поточну дату."""
+
+    def __init__(self, today: date):
+        super().__init__()
+        self.today = today
+        self.film = None
+        self.fmt = ""
+        self.day = None          # дата блоку розкладу (None = ще не траплялась)
+        self.a_href = None
+        self.a_text = []
+        self.result: dict[str, set] = {}
+        self.time_links = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            self.a_href = dict(attrs).get("href", "") or ""
+            self.a_text = []
+
+    def handle_endtag(self, tag):
+        if tag != "a" or self.a_href is None:
+            return
+        text = " ".join("".join(self.a_text).split())
+        href, self.a_href = self.a_href, None
+        if TIME_RE.match(text):
+            self.time_links += 1
+            if self.film and (self.day is None or self.day == self.today):
+                label = self.film + (f" ({self.fmt.upper()})" if self.fmt.upper() == "3D" else "")
+                self.result.setdefault(label, set()).add(text.strip().zfill(5))
+        elif "/show/" in href and text:
+            self.film, self.fmt = text, ""
+        else:
+            self._check_text(text)
+
+    def handle_data(self, data):
+        if self.a_href is not None:
+            self.a_text.append(data)
+        else:
+            self._check_text(data)
+
+    def _check_text(self, data):
+        if FMT_RE.match(data):
+            self.fmt = data.strip()
+            return
+        m = DATE_RE.search(data)
+        if m and len(data.strip()) < 40:
+            try:
+                self.day = date(self.today.year, MONTH_BY_PREFIX[m.group(2)[:3].lower()], int(m.group(1)))
+            except ValueError:
+                pass
+
+
+def get_cinema_today(url: str, today: date) -> dict[str, list]:
+    r = HTTP.get(url, timeout=TIMEOUT)
+    r.raise_for_status()
+    p = VkinoParser(today)
+    p.feed(r.text)
+    print(f"[кіно] {url}: знайдено посилань-сеансів {p.time_links}, фільмів на сьогодні {len(p.result)}")
+    return {f: sorted(t) for f, t in p.result.items()}
+
+
+def build_cinema(now: datetime) -> str:
+    today = now.date()
+    parts = []
+    for c in CFG["cinema"]["cinemas"]:
+        try:
+            films = get_cinema_today(c["url"], today)
+        except Exception as e:
+            print(f"[warn] кіно {c['name']}: {e}", file=sys.stderr)
+            continue
+        # лише сеанси, що ще попереду
+        films = {f: [t for t in ts if t > f"{now:%H:%M}"] for f, ts in films.items()}
+        films = {f: ts for f, ts in films.items() if ts}
+        if not films:
+            continue
+        lines = [f"📍 <b>{esc(c['name'])}</b>"]
+        for f, ts in sorted(films.items(), key=lambda kv: kv[1][0]):
+            lines.append(f"• {esc(f)} — {', '.join(ts)}")
+        lines.append(f'<a href="{html.escape(c["url"], quote=True)}">Квитки та деталі →</a>')
+        parts.append("\n".join(lines))
+    if not parts:
+        raise RuntimeError("не вдалося отримати розклад жодного кінотеатру")
+    head = f"🎬 <b>Кіно сьогодні</b> · {UA_WEEKDAYS[today.weekday()]}, {ua_date(today)}"
+    return head + "\n\n" + "\n\n".join(parts)
+
+
 # ───────────────────────────── розклад ─────────────────────────────
 
 def main() -> int:
@@ -480,7 +695,31 @@ def main() -> int:
             errors += 1
             print(f"✗ якість повітря: {e}", file=sys.stderr)
 
-    save_state(state)
+    # 4. Новини громади
+    nc = CFG.get("news", {})
+    if nc.get("enabled") and (FORCE == "news" or (not FORCE and nc["from_hour"] <= now.hour < nc["to_hour"])):
+        try:
+            run_news(state, now)
+        except Exception as e:
+            errors += 1
+            print(f"✗ новини: {e}", file=sys.stderr)
+
+    # 5. Кіно
+    cc = CFG.get("cinema", {})
+    due = (cc.get("enabled") and now.weekday() in cc["weekdays"]
+           and cc["hour"] <= now.hour < cc["latest_hour"] and state.get("last_cinema") != today)
+    if FORCE == "cinema" or due:
+        try:
+            send(build_cinema(now))
+            if not FORCE:
+                state["last_cinema"] = today
+            print("✓ кіно")
+        except Exception as e:
+            errors += 1
+            print(f"✗ кіно: {e}", file=sys.stderr)
+
+    if not (DRY_RUN and FORCE):
+        save_state(state)
     return 1 if errors and FORCE else 0
 
 
