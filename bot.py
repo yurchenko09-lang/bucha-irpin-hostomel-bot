@@ -188,19 +188,19 @@ def get_air() -> dict:
     return r.json()["current"]
 
 
-def aqi_label(aqi: float) -> tuple[str, str]:
-    # Шкала European AQI
+def aqi_label(aqi: float) -> tuple[str, str, str]:
+    """Європейський індекс якості повітря (AQI) → значок, опис, порада."""
     if aqi <= 20:
-        return "🟢", "добра"
+        return "🟢", "чисте", "можна сміливо провітрювати й гуляти"
     if aqi <= 40:
-        return "🟢", "задовільна"
+        return "🟢", "нормальне", "можна провітрювати"
     if aqi <= 60:
-        return "🟡", "помірна"
+        return "🟡", "трохи забруднене", "людям з астмою чи алергією краще менше бути надворі"
     if aqi <= 80:
-        return "🟠", "погана"
+        return "🟠", "забруднене", "зачиніть вікна й скоротіть прогулянки"
     if aqi <= 100:
-        return "🔴", "дуже погана"
-    return "🟣", "надзвичайно погана"
+        return "🔴", "сильно забруднене", "зачиніть вікна, без потреби не виходьте надвір"
+    return "🟣", "небезпечно забруднене", "залишайтеся вдома з зачиненими вікнами"
 
 
 AIR_WARNED_IN_MORNING = False
@@ -211,12 +211,10 @@ def air_line(a: dict) -> str:
     aqi = a.get("european_aqi")
     if aqi is None:
         return ""
-    icon, label = aqi_label(aqi)
-    line = f"{icon} <b>Повітря:</b> {label} (AQI {aqi:.0f}, PM2.5 {a.get('pm2_5', 0):.0f} мкг/м³)"
+    icon, label, advice = aqi_label(aqi)
     if aqi > CFG["air"]["aqi_threshold"]:
         AIR_WARNED_IN_MORNING = True
-        line += "\nПорада: зачиніть вікна й скоротіть час надворі."
-    return line
+    return f"{icon} <b>Повітря {label}</b> — {advice}"
 
 
 # ───────────────────────────── курс НБУ ─────────────────────────────
@@ -341,9 +339,27 @@ def safe(fn, *args):
         return ""
 
 
+def greeting(now: datetime) -> str:
+    h = now.hour
+    if 5 <= h < 12:
+        return "☀️ <b>Доброго ранку, громадо!</b>"
+    if 12 <= h < 18:
+        return "🌤 <b>Доброго дня, громадо!</b>"
+    if 18 <= h < 23:
+        return "🌆 <b>Доброго вечора, громадо!</b>"
+    return "🌙 <b>Доброї ночі, громадо!</b>"
+
+
+def namedays_line(d: date) -> str:
+    """Іменини за новим церковним календарем (файл namedays.json)."""
+    data = json.loads((BASE / "namedays.json").read_text(encoding="utf-8"))
+    names = data.get(f"{d.month:02d}-{d.day:02d}")
+    return f"🎂 <b>Іменини:</b> {esc(', '.join(names))}" if names else ""
+
+
 def build_morning(now: datetime) -> str:
     today = now.date()
-    head = (f"☀️ <b>Доброго ранку, громадо!</b>\n"
+    head = (f"{greeting(now)}\n"
             f"{UA_WEEKDAYS[today.weekday()].capitalize()}, {ua_date(today)} · {esc(CFG['area_name'])}")
     w = safe(get_weather)
     blocks = [
@@ -351,6 +367,7 @@ def build_morning(now: datetime) -> str:
         weather_block(w) if w else "",
         (air_line(a) if (a := safe(get_air)) else ""),
         safe(currency_block, today),
+        safe(namedays_line, today),
     ]
     body = "\n\n".join(b for b in blocks if b)
     if not body:
@@ -399,12 +416,12 @@ def build_weekly(now: datetime) -> str:
 
 
 def build_air_warning(a: dict) -> str:
-    icon, label = aqi_label(a["european_aqi"])
-    return (f"{icon} <b>Погана якість повітря</b> · {esc(CFG['area_name'])}\n\n"
-            f"Індекс AQI {a['european_aqi']:.0f} — {label}. "
-            f"PM2.5: {a.get('pm2_5', 0):.0f} мкг/м³, PM10: {a.get('pm10', 0):.0f} мкг/м³.\n\n"
-            "Порада: зачиніть вікна, скоротіть час надворі, особливо дітям, "
-            "літнім людям і тим, хто має проблеми з диханням.")
+    aqi = a["european_aqi"]
+    icon, label, advice = aqi_label(aqi)
+    return (f"{icon} <b>Увага: повітря {label}</b>\n{esc(CFG['area_name'])}\n\n"
+            f"Рівень забруднення зараз {aqi:.0f} (норма — до 40).\n\n"
+            f"Що робити: {advice}. Особливо це стосується дітей, "
+            "літніх людей і тих, хто має проблеми з диханням.")
 
 
 # ───────────────────────────── розклад ─────────────────────────────
