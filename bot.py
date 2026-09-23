@@ -688,7 +688,9 @@ def get_fuel_prices() -> dict:
         for fuel, aliases in fc["fuels"].items():
             for i, c in enumerate(low):
                 # "а-95" не має збігтися з "а-95+" / "а-95 преміум"
-                if any(c == a or c.startswith(a + " ") or c == a + "," for a in aliases) and "+" not in c:
+                # колонка підходить, якщо в заголовку є ключове слово, але це не преміум-версія
+                if any(a in c for a in aliases) and not any(x in c for x in ("+", "прем", "prem", "плюс")) \
+                        and len(c) < 25:
                     found[fuel] = i
                     break
         if len(found) >= 2:
