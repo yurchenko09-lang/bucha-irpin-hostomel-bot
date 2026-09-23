@@ -679,7 +679,7 @@ def get_fuel_prices() -> dict:
     r.raise_for_status()
     p = TableParser()
     p.feed(r.text)
-    cols = None
+    cols, header_len = None, 0
     result = {}
     for row in p.rows:
         low = [c.lower() for c in row]
@@ -692,20 +692,33 @@ def get_fuel_prices() -> dict:
                     found[fuel] = i
                     break
         if len(found) >= 2:
-            cols = found
+            cols, header_len = found, len(row)
             continue
         if not cols or not row:
             continue
-        net = next((n for n, al in fc["networks"].items() if any(a in low[0] for a in al)), None)
+        # назва мережі — у першій клітинці з літерами (перед нею може бути логотип чи номер)
+        name = next((c for c in low if re.search(r"[a-zа-яіїє]", c)), "")
+        net = next((n for n, al in fc["networks"].items() if any(a in name for a in al)), None)
         if not net or net in result:
             continue
+        # якщо в рядку даних більше клітинок, ніж у заголовку (логотип, номер тощо),
+        # вирівнюємо колонки по правому краю
+        shift = len(row) - header_len
         prices = {}
         for fuel, i in cols.items():
-            if i < len(row) and (m := NUM_RE.search(row[i])):
-                prices[fuel] = float(m.group().replace(",", "."))
+            j = i + shift
+            if 0 <= j < len(row) and (m := NUM_RE.search(row[j])):
+                v = float(m.group().replace(",", "."))
+                lo, hi = fc["sane"][fuel]
+                if lo <= v <= hi:
+                    prices[fuel] = v
+                else:
+                    print(f"[пальне] підозріла ціна {net} {fuel}={v}, пропускаю")
         if prices:
             result[net] = prices
     print(f"[пальне] рядків у таблицях: {len(p.rows)}, колонки: {cols}, мереж знайдено: {list(result)}")
+    for row in p.rows[:12]:  # для діагностики: як виглядає таблиця
+        print("   │ " + " | ".join(row)[:160])
     return result
 
 
@@ -740,6 +753,9 @@ def run_fuel(state: dict, now: datetime) -> None:
     prices = get_fuel_prices()
     if not prices:
         raise RuntimeError("не вдалося розібрати таблицю цін")
+    filled = sum(len(v) for v in prices.values())
+    if filled < len(prices) * len(CFG["fuel"]["fuels"]) * 0.6:
+        raise RuntimeError(f"таблиця розібрана підозріло ({filled} цін) — пост не публікую: {prices}")
     prev = state.get("fuel_last", {})
     changed = prices != prev
     fc = CFG["fuel"]
