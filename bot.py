@@ -14,7 +14,7 @@
   CHAT_ID        — куди публікувати: @назва_каналу, або ваш числовий ID для тестів
   ALERTS_TOKEN   — токен alerts.in.ua (необов'язково: без нього блок тривог пропускається)
   DRY_RUN=1      — нічого не надсилати, лише надрукувати пост у лог
-  FORCE=morning|weekly|air|news|cinema — примусово зібрати пост зараз (для перевірки)
+  FORCE=morning|weekly|air|news|cinema|fuel — примусово зібрати пост зараз (для перевірки)
 """
 
 import html
@@ -639,6 +639,120 @@ def build_cinema(now: datetime) -> str:
     return head + "\n\n" + "\n\n".join(parts)
 
 
+# ───────────────────────────── пальне ─────────────────────────────
+
+class TableParser(HTMLParser):
+    """Збирає всі рядки всіх таблиць сторінки як списки тексту клітинок."""
+    def __init__(self):
+        super().__init__()
+        self.rows, self.row, self.cell = [], None, None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self.row = []
+        elif tag in ("td", "th") and self.row is not None:
+            self.cell = []
+
+    def handle_endtag(self, tag):
+        if tag in ("td", "th") and self.cell is not None and self.row is not None:
+            self.row.append(" ".join("".join(self.cell).split()))
+            self.cell = None
+        elif tag == "tr" and self.row is not None:
+            if self.row:
+                self.rows.append(self.row)
+            self.row = None
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+
+NUM_RE = re.compile(r"\d{2,3}[.,]\d{1,2}")
+
+
+def get_fuel_prices() -> dict:
+    """{мережа: {пальне: ціна}} з таблиці цін за мережами."""
+    fc = CFG["fuel"]
+    r = HTTP.get(fc["url"], timeout=TIMEOUT, headers={
+        "Accept-Language": "uk",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"})
+    r.raise_for_status()
+    p = TableParser()
+    p.feed(r.text)
+    cols = None
+    result = {}
+    for row in p.rows:
+        low = [c.lower() for c in row]
+        # рядок-заголовок: шукаємо, в якій колонці яке пальне
+        found = {}
+        for fuel, aliases in fc["fuels"].items():
+            for i, c in enumerate(low):
+                # "а-95" не має збігтися з "а-95+" / "а-95 преміум"
+                if any(c == a or c.startswith(a + " ") or c == a + "," for a in aliases) and "+" not in c:
+                    found[fuel] = i
+                    break
+        if len(found) >= 2:
+            cols = found
+            continue
+        if not cols or not row:
+            continue
+        net = next((n for n, al in fc["networks"].items() if any(a in low[0] for a in al)), None)
+        if not net or net in result:
+            continue
+        prices = {}
+        for fuel, i in cols.items():
+            if i < len(row) and (m := NUM_RE.search(row[i])):
+                prices[fuel] = float(m.group().replace(",", "."))
+        if prices:
+            result[net] = prices
+    print(f"[пальне] рядків у таблицях: {len(p.rows)}, колонки: {cols}, мереж знайдено: {list(result)}")
+    return result
+
+
+def build_fuel(now: datetime, prices: dict, prev: dict) -> str:
+    fuels = list(CFG["fuel"]["fuels"])
+    w = max(len(n) for n in prices) + 1
+    lines = [" " * w + "".join(f"{f:>8}" for f in fuels)]
+    changes = []
+    for net in CFG["fuel"]["networks"]:
+        if net not in prices:
+            continue
+        cells = ""
+        for f in fuels:
+            v = prices[net].get(f)
+            cells += f"{v:8.2f}" if v else f"{'—':>8}"
+            old = prev.get(net, {}).get(f)
+            if v and old and abs(v - old) >= 0.01:
+                d = v - old
+                changes.append(f"{'🔺' if d > 0 else '🔻'} {net}, {f}: {'+' if d > 0 else '−'}{abs(d):.2f} грн")
+        lines.append(f"{net:<{w}}{cells}")
+    txt = (f"⛽️ <b>Ціни на пальне</b> · {ua_date(now.date())}\n"
+           f"<pre>{esc(chr(10).join(lines))}</pre>")
+    if changes:
+        txt += "\n<b>Зміни:</b>\n" + "\n".join(changes)
+    elif prev:
+        txt += "\nЦіни без змін ✅"
+    txt += "\n<i>грн за літр · середні ціни мереж по Україні · дані Мінфіну</i>"
+    return txt
+
+
+def run_fuel(state: dict, now: datetime) -> None:
+    prices = get_fuel_prices()
+    if not prices:
+        raise RuntimeError("не вдалося розібрати таблицю цін")
+    prev = state.get("fuel_last", {})
+    changed = prices != prev
+    fc = CFG["fuel"]
+    if FORCE == "fuel" or not fc["only_if_changed"] or changed or now.weekday() in fc["always_weekdays"]:
+        send(build_fuel(now, prices, prev))
+        print("✓ пальне")
+    else:
+        print("пальне: без змін, пост не потрібен")
+    if not FORCE:
+        state["fuel_last"] = prices
+        state["last_fuel"] = now.date().isoformat()
+
+
 # ───────────────────────────── розклад ─────────────────────────────
 
 def main() -> int:
@@ -717,6 +831,17 @@ def main() -> int:
         except Exception as e:
             errors += 1
             print(f"✗ кіно: {e}", file=sys.stderr)
+
+    # 6. Ціни на пальне
+    fc = CFG.get("fuel", {})
+    due = (not FORCE and fc.get("enabled") and fc["hour"] <= now.hour < fc["latest_hour"]
+           and state.get("last_fuel") != today)
+    if FORCE == "fuel" or due:
+        try:
+            run_fuel(state, now)
+        except Exception as e:
+            errors += 1
+            print(f"✗ пальне: {e}", file=sys.stderr)
 
     if not (DRY_RUN and FORCE):
         save_state(state)

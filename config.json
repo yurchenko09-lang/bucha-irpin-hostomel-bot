@@ -116,5 +116,50 @@
         "url": "https://m.vkino.com.ua/ua/cinema/irpen/perun-eco"
       }
     ]
+  },
+  "fuel": {
+    "enabled": true,
+    "url": "https://index.minfin.com.ua/ua/markets/fuel/tm/",
+    "hour": 9,
+    "latest_hour": 13,
+    "always_weekdays": [
+      0
+    ],
+    "only_if_changed": true,
+    "networks": {
+      "OKKO": [
+        "окко",
+        "okko"
+      ],
+      "WOG": [
+        "wog",
+        "вог"
+      ],
+      "SOCAR": [
+        "socar",
+        "сокар"
+      ],
+      "UPG": [
+        "upg"
+      ],
+      "Укрнафта": [
+        "укрнафт",
+        "ukrnaft"
+      ]
+    },
+    "fuels": {
+      "А-95": [
+        "а-95",
+        "a-95",
+        "а95"
+      ],
+      "ДП": [
+        "дп",
+        "дизель"
+      ],
+      "Газ": [
+        "газ"
+      ]
+    }
   }
 }
