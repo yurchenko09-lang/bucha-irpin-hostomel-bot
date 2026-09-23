@@ -1,0 +1,58 @@
+name: Bucha region bot
+
+on:
+  schedule:
+    # Кожні 30 хв (час у UTC). Бот сам вирішує, чи пора публікувати.
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Примусово зібрати пост"
+        type: choice
+        options: [none, morning, weekly, air]
+        default: none
+      dry_run:
+        description: "Лише показати в лозі, не надсилати"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bucha-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run bot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          ALERTS_TOKEN: ${{ secrets.ALERTS_TOKEN }}
+          FORCE: ${{ github.event.inputs.force != 'none' && github.event.inputs.force || '' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+        run: python bot.py
+
+      - name: Save state
+        if: github.event_name == 'schedule'
+        run: |
+          if ! git diff --quiet state.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state.json
+            git commit -m "state: $(date -u +%FT%TZ)"
+            git push
+          fi
