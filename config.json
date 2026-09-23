@@ -1,0 +1,40 @@
+{
+  "area_name": "Буча · Ірпінь · Гостомель",
+  "timezone": "Europe/Kyiv",
+
+  "weather_point": { "lat": 50.545, "lon": 30.243 },
+
+  "alerts": {
+    "oblast_uid": "14",
+    "match_words": ["Бучанськ", "Ірпін", "Гостомел", "Буча"],
+    "count_whole_oblast": true
+  },
+
+  "morning": {
+    "hour": 7,
+    "latest_hour": 11,
+    "night_from_hour": 22
+  },
+
+  "weekly": {
+    "weekday": 0,
+    "hour": 9,
+    "latest_hour": 14
+  },
+
+  "air": {
+    "enabled": true,
+    "aqi_threshold": 60,
+    "from_hour": 7,
+    "to_hour": 22
+  },
+
+  "weather_warnings": {
+    "gusts_ms": 17,
+    "heat_c": 32,
+    "frost_c": -15,
+    "precip_mm": 20
+  },
+
+  "currencies": ["USD", "EUR"]
+}
