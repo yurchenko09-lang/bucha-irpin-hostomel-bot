@@ -46,7 +46,6 @@
     "query": "(Буча OR Ірпінь OR Гостомель) when:1d",
     "from_hour": 8,
     "to_hour": 22,
-    "max_age_hours": 24,
     "max_per_run": 2,
     "max_per_day": 8,
     "must_match": [

@@ -484,8 +484,8 @@ def select_news(items: list[dict], state: dict, now: datetime):
         reason = None
         if n["id"] in seen:
             reason = "вже публікувалось"
-        elif not n["pub"] or (now - n["pub"]).total_seconds() > nc["max_age_hours"] * 3600:
-            reason = "старе"
+        elif not n["pub"] or n["pub"].date() != now.date():
+            reason = "не сьогодні"
         elif any(b in n["source_url"].lower() or b in n["source"].lower() for b in nc["blocked_sources"]):
             reason = "спортивне джерело"
         elif any(p.search(tl) for p in stop):
