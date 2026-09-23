@@ -650,7 +650,7 @@ def main() -> int:
 
     # 1. Ранковий пост
     m = CFG["morning"]
-    due = m["hour"] <= now.hour < m["latest_hour"] and state.get("last_morning") != today
+    due = not FORCE and m["hour"] <= now.hour < m["latest_hour"] and state.get("last_morning") != today
     if FORCE == "morning" or due:
         try:
             send(build_morning(now))
@@ -666,7 +666,7 @@ def main() -> int:
     # 2. Тижнева статистика
     wk = CFG["weekly"]
     week_id = f"{now.isocalendar().year}-W{now.isocalendar().week}"
-    due = (ALERTS_TOKEN and now.weekday() == wk["weekday"] and wk["hour"] <= now.hour < wk["latest_hour"]
+    due = (not FORCE and ALERTS_TOKEN and now.weekday() == wk["weekday"] and wk["hour"] <= now.hour < wk["latest_hour"]
            and state.get("last_weekly") != week_id)
     if FORCE == "weekly" or due:
         try:
@@ -680,7 +680,7 @@ def main() -> int:
 
     # 3. Попередження про якість повітря
     ac = CFG["air"]
-    if ac["enabled"] and (FORCE == "air" or (ac["from_hour"] <= now.hour <= ac["to_hour"]
+    if FORCE == "air" or (not FORCE and ac["enabled"] and (ac["from_hour"] <= now.hour <= ac["to_hour"]
                                              and state.get("last_air") != today)):
         try:
             a = get_air()
@@ -697,7 +697,7 @@ def main() -> int:
 
     # 4. Новини громади
     nc = CFG.get("news", {})
-    if nc.get("enabled") and (FORCE == "news" or (not FORCE and nc["from_hour"] <= now.hour < nc["to_hour"])):
+    if FORCE == "news" or (not FORCE and nc.get("enabled") and nc["from_hour"] <= now.hour < nc["to_hour"]):
         try:
             run_news(state, now)
         except Exception as e:
@@ -706,7 +706,7 @@ def main() -> int:
 
     # 5. Кіно
     cc = CFG.get("cinema", {})
-    due = (cc.get("enabled") and now.weekday() in cc["weekdays"]
+    due = (not FORCE and cc.get("enabled") and now.weekday() in cc["weekdays"]
            and cc["hour"] <= now.hour < cc["latest_hour"] and state.get("last_cinema") != today)
     if FORCE == "cinema" or due:
         try:

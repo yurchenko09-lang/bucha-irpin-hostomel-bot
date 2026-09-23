@@ -42,7 +42,7 @@
     "EUR"
   ],
   "news": {
-    "enabled": false,
+    "enabled": true,
     "query": "(Буча OR Ірпінь OR Гостомель) when:1d",
     "from_hour": 8,
     "to_hour": 22,
@@ -95,10 +95,15 @@
     ]
   },
   "cinema": {
-    "enabled": false,
+    "enabled": true,
     "weekdays": [
+      0,
+      1,
+      2,
+      3,
       4,
-      5
+      5,
+      6
     ],
     "hour": 10,
     "latest_hour": 14,
