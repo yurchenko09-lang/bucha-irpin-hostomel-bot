@@ -283,14 +283,20 @@ def get_alert_history() -> list[tuple[datetime, datetime | None]]:
     r.raise_for_status()
     items = r.json().get("alerts", [])
     # історія може не містити тривог, що тривають просто зараз — додаємо активні
+    active_ids = None
     try:
         ra = HTTP.get("https://api.alerts.in.ua/v1/alerts/active.json",
                       headers={"Authorization": f"Bearer {ALERTS_TOKEN}"}, timeout=TIMEOUT)
         ra.raise_for_status()
+        active = ra.json().get("alerts", [])
+        active_ids = {a.get("id") for a in active}
         seen = {a.get("id") for a in items}
-        items += [a for a in ra.json().get("alerts", []) if a.get("id") not in seen]
+        items += [a for a in active if a.get("id") not in seen]
     except Exception as e:
         print(f"[warn] active alerts: {e}", file=sys.stderr)
+    # «незакриті» записи в історії, яких немає серед активних, — застарілі, не рахуємо їх як «триває»
+    if active_ids is not None:
+        items = [a for a in items if a.get("finished_at") or a.get("id") in active_ids]
     rel = [a for a in items if is_relevant(a) and a.get("started_at")]
     print(f"[тривоги] усього в історії: {len(items)}, наших: {len(rel)}")
     for a in sorted(rel, key=lambda x: x["started_at"])[-8:]:  # діагностика: останні наші тривоги
