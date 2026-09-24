@@ -329,16 +329,19 @@ def merge_intervals(alerts, start: datetime, end: datetime):
 def night_alerts_block(now: datetime) -> str:
     if not ALERTS_TOKEN:
         return ""
-    start = (now - timedelta(days=1)).replace(hour=CFG["morning"]["night_from_hour"],
-                                              minute=0, second=0, microsecond=0)
+    h = CFG["morning"]["night_from_hour"]          # 0 = від початку доби (00:00), 22 = з 22:00 вчора
+    start = now.replace(hour=h, minute=0, second=0, microsecond=0)
+    if start > now:
+        start -= timedelta(days=1)
     alerts = get_alert_history()
     merged = merge_intervals(alerts, start, now)
     active_now = any(s <= now and (f is None or f > now) for s, f in alerts)
+    label = "Від початку доби" if h == 0 else f"З {h:02d}:00"
     if not merged:
-        return "🌙 <b>Ніч минула без тривог</b>"
+        return f"🌙 <b>{label}</b> тривог не було"
     total = sum((f - s for s, f in merged), timedelta())
     n = len(merged)
-    txt = (f"🌙 <b>За ніч:</b> {n} {plural(n, 'тривога', 'тривоги', 'тривог')}, "
+    txt = (f"🌙 <b>{label}:</b> {n} {plural(n, 'тривога', 'тривоги', 'тривог')}, "
            f"загалом {fmt_duration(total)}")
     if active_now:
         txt += "\n🔴 <b>Тривога триває зараз</b>"

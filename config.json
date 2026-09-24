@@ -22,7 +22,7 @@
   "morning": {
     "hour": 7,
     "latest_hour": 11,
-    "night_from_hour": 22
+    "night_from_hour": 0
   },
   "weekly": {
     "weekday": 0,
