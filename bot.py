@@ -14,7 +14,7 @@
   CHAT_ID        — куди публікувати: @назва_каналу, або ваш числовий ID для тестів
   ALERTS_TOKEN   — токен alerts.in.ua (необов'язково: без нього блок тривог пропускається)
   DRY_RUN=1      — нічого не надсилати, лише надрукувати пост у лог
-  FORCE=morning|weekly|air|news|cinema|fuel — примусово зібрати пост зараз (для перевірки)
+  FORCE=morning|weekly|air|news|cinema|fuel|laws — примусово зібрати пост зараз (для перевірки)
 """
 
 import html
@@ -257,13 +257,19 @@ def _parse_dt(s: str | None) -> datetime | None:
 
 
 def is_relevant(a: dict) -> bool:
+    """Тривога стосується нас, якщо оголошена: на всю область, на весь Бучанський район
+    або саме в Бучанській / Ірпінській / Гостомельській громаді.
+    (Тривоги в інших громадах району — Бородянка, Макарів тощо — не рахуємо.)"""
     ac = CFG["alerts"]
     if a.get("alert_type") != "air_raid":
         return False
-    if a.get("location_type") == "oblast":
+    lt = a.get("location_type")
+    title = str(a.get("location_title") or "").lower()
+    if lt == "oblast":
         return ac.get("count_whole_oblast", True)
-    text = " ".join(str(a.get(k) or "") for k in ("location_title", "location_raion"))
-    return any(w.lower() in text.lower() for w in ac["match_words"])
+    if lt == "raion":
+        return any(w.lower() in title for w in ac["raion_words"])
+    return any(w.lower() in title for w in ac["match_words"])
 
 
 def get_alert_history() -> list[tuple[datetime, datetime | None]]:
@@ -285,8 +291,12 @@ def get_alert_history() -> list[tuple[datetime, datetime | None]]:
         items += [a for a in ra.json().get("alerts", []) if a.get("id") not in seen]
     except Exception as e:
         print(f"[warn] active alerts: {e}", file=sys.stderr)
-    _alerts_cache = [(_parse_dt(a["started_at"]), _parse_dt(a.get("finished_at")))
-                     for a in items if is_relevant(a) and a.get("started_at")]
+    rel = [a for a in items if is_relevant(a) and a.get("started_at")]
+    print(f"[тривоги] усього в історії: {len(items)}, наших: {len(rel)}")
+    for a in sorted(rel, key=lambda x: x["started_at"])[-8:]:  # діагностика: останні наші тривоги
+        print(f"   │ {a.get('location_type')}: {a.get('location_title')} · "
+              f"{a.get('started_at')} → {a.get('finished_at') or 'триває'}")
+    _alerts_cache = [(_parse_dt(a["started_at"]), _parse_dt(a.get("finished_at"))) for a in rel]
     return _alerts_cache
 
 
@@ -771,6 +781,165 @@ def run_fuel(state: dict, now: datetime) -> None:
         state["last_fuel"] = now.date().isoformat()
 
 
+# ───────────────────── укази й постанови ─────────────────────
+
+def _walk_records(obj, out):
+    """Шукає в JSON будь-якої будови словники, схожі на документ (є назва й ідентифікатор)."""
+    if isinstance(obj, dict):
+        keys = {k.lower() for k in obj}
+        if keys & {"nazva", "title", "name", "назва"} and keys & {"nreg", "dokid", "id", "n_reg"}:
+            out.append(obj)
+        for v in obj.values():
+            _walk_records(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _walk_records(v, out)
+
+
+def _pick(d: dict, *names):
+    for k, v in d.items():
+        if k.lower() in names and v:
+            return str(v)
+    return ""
+
+
+def fetch_rada_docs() -> list[dict]:
+    lc = CFG["laws"]
+    ua = "OpenData"
+    try:
+        t = HTTP.get(lc["rada_token_url"], timeout=TIMEOUT, headers={"User-Agent": "OpenData"})
+        if t.ok:
+            ua = t.json().get("token") or ua
+            print("[укази] токен Ради отримано")
+    except Exception as e:
+        print(f"[укази] токен не отримано ({e}), пробую з User-Agent OpenData")
+    for url in lc["rada_list_urls"]:
+        try:
+            r = HTTP.get(url, timeout=TIMEOUT, headers={"User-Agent": ua})
+            print(f"[укази] {url} → {r.status_code}, {len(r.content)} байт")
+            if not r.ok:
+                continue
+            data = r.json()
+        except Exception as e:
+            print(f"[укази] {url}: {e}")
+            continue
+        recs = []
+        _walk_records(data, recs)
+        print(f"[укази] записів знайдено: {len(recs)}")
+        if recs:
+            print("[укази] приклад запису:", json.dumps(recs[0], ensure_ascii=False)[:400])
+        docs = []
+        for d in recs:
+            nreg = _pick(d, "nreg", "n_reg")
+            docs.append({
+                "id": nreg or _pick(d, "dokid", "id"),
+                "title": _pick(d, "nazva", "title", "name", "назва"),
+                "meta": json.dumps(d, ensure_ascii=False).lower(),
+                "date": _pick(d, "orgdat", "date", "data", "datа"),
+                "link": f"https://zakon.rada.gov.ua/laws/show/{nreg}" if nreg else "",
+            })
+        if docs:
+            return docs
+    return []
+
+
+class PresidentDocsParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.href, self.text, self.docs = None, [], []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            h = dict(attrs).get("href", "") or ""
+            if re.search(r"/documents/\d{3,}", h):
+                self.href, self.text = h, []
+
+    def handle_data(self, data):
+        if self.href is not None:
+            self.text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self.href is not None:
+            t = " ".join("".join(self.text).split())
+            if len(t) > 8:
+                m = re.search(r"/documents/(\d+?)(\d{4})-", self.href)
+                num = f"{m.group(1)}/{m.group(2)}" if m else ""
+                link = self.href if self.href.startswith("http") else "https://www.president.gov.ua" + self.href
+                self.docs.append({"id": "pres-" + (num or link), "title": t, "num": num,
+                                  "meta": ("указ президента " + t).lower(), "date": "", "link": link})
+            self.href = None
+
+
+def fetch_president_docs() -> list[dict]:
+    r = HTTP.get(CFG["laws"]["president_url"], timeout=TIMEOUT, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124 Safari/537.36"})
+    r.raise_for_status()
+    p = PresidentDocsParser()
+    p.feed(r.text)
+    print(f"[укази] сайт Президента: документів {len(p.docs)}")
+    return p.docs
+
+
+def kw_match(text: str, kw: str) -> bool:
+    """Ключ із кількох слів ("воєнн стан") збігається, якщо в тексті є всі ці основи слів."""
+    return all(part in text for part in kw.split())
+
+
+def classify_doc(d: dict):
+    """Повертає (видавець, тема) або None, якщо документ нецікавий."""
+    lc = CFG["laws"]
+    text = (d["title"] + " " + d["meta"]).lower()
+    pub = next((p for p, al in lc["publishers"].items() if any(a in text for a in al)), None)
+    if not pub:
+        return None
+    if any(kw_match(text, x) for x in lc["exclude"]):
+        return None
+    title = d["title"].lower()
+    topic = next((t for t, kws in lc["topics"].items() if any(kw_match(title, k) for k in kws)), None)
+    return (pub, topic) if topic else None
+
+
+def run_laws(state: dict, now: datetime) -> None:
+    lc = CFG["laws"]
+    docs = []
+    try:
+        docs = fetch_rada_docs()
+    except Exception as e:
+        print(f"[укази] API Ради: {e}")
+    if not docs:
+        print("[укази] API Ради не дав даних — беру укази з сайту Президента")
+        docs = fetch_president_docs()
+    seen = set(state.get("laws_seen", []))
+    picked, skipped = [], 0
+    for d in docs:
+        if not d["id"] or d["id"] in seen:
+            continue
+        c = classify_doc(d)
+        if c:
+            picked.append((d, *c))
+        else:
+            skipped += 1
+    print(f"[укази] нових документів: {len(picked) + skipped}, з них за темами: {len(picked)}")
+    for d, pub, topic in picked:
+        print(f"   ✅ {topic} | {pub} | {d['title'][:120]}")
+
+    if picked:
+        lines = [f"📜 <b>Важливі рішення тижня</b>\n<i>укази Президента й постанови Уряду, що стосуються кожного</i>"]
+        for d, pub, topic in picked[: lc["max_items"]]:
+            icon = topic.split()[0]
+            who = "Указ Президента" if pub == "Президент" else "Постанова Кабміну"
+            link = f' · <a href="{html.escape(d["link"], quote=True)}">текст</a>' if d["link"] else ""
+            lines.append(f"{icon} <b>{esc(d['title'])}</b>\n{who}{link}")
+        send("\n\n".join(lines))
+        print("✓ укази")
+    else:
+        print("[укази] важливих документів немає — пост не публікую")
+
+    if not FORCE:
+        state["laws_seen"] = (list(seen) + [d["id"] for d in docs if d["id"]])[-2000:]
+        state["last_laws"] = now.date().isoformat()
+
+
 # ───────────────────────────── розклад ─────────────────────────────
 
 def main() -> int:
@@ -860,6 +1029,17 @@ def main() -> int:
         except Exception as e:
             errors += 1
             print(f"✗ пальне: {e}", file=sys.stderr)
+
+    # 7. Укази й постанови (щотижневий дайджест)
+    lc = CFG.get("laws", {})
+    due = (not FORCE and lc.get("enabled") and now.weekday() == lc["weekday"]
+           and lc["hour"] <= now.hour < lc["latest_hour"] and state.get("last_laws") != today)
+    if FORCE == "laws" or due:
+        try:
+            run_laws(state, now)
+        except Exception as e:
+            errors += 1
+            print(f"✗ укази: {e}", file=sys.stderr)
 
     if not (DRY_RUN and FORCE):
         save_state(state)
