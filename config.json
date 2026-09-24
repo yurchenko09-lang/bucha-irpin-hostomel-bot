@@ -124,8 +124,8 @@
   "fuel": {
     "enabled": true,
     "url": "https://index.minfin.com.ua/ua/markets/fuel/tm/",
-    "hour": 9,
-    "latest_hour": 13,
+    "hour": 12,
+    "latest_hour": 15,
     "always_weekdays": [
       0
     ],
