@@ -1,15 +1,18 @@
 name: Bucha region bot
 
 on:
+  # Основний «будильник» — зовнішній сервіс cron-job.org кожні 30 хв (див. README).
+  repository_dispatch:
+    types: [tick]
+  # Запасний розклад GitHub (раз на 2 години): GitHub часто затримує або пропускає такі запуски.
   schedule:
-    # Кожні 30 хв (час у UTC). Бот сам вирішує, чи пора публікувати.
-    - cron: "7,37 * * * *"
+    - cron: "17 */2 * * *"
   workflow_dispatch:
     inputs:
       force:
         description: "Примусово зібрати пост"
         type: choice
-        options: [none, morning, weekly, air, news, cinema, fuel]
+        options: [none, morning, weekly, air, news, cinema, fuel, laws]
         default: none
       dry_run:
         description: "Лише показати в лозі, не надсилати"
@@ -47,7 +50,7 @@ jobs:
         run: python bot.py
 
       - name: Save state
-        if: github.event_name == 'schedule'
+        if: github.event_name != 'workflow_dispatch'
         run: |
           if ! git diff --quiet state.json; then
             git config user.name "github-actions[bot]"
