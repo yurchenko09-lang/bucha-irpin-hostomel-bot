@@ -266,7 +266,8 @@ def is_relevant(a: dict) -> bool:
     lt = a.get("location_type")
     title = str(a.get("location_title") or "").lower()
     if lt == "oblast":
-        return ac.get("count_whole_oblast", True)
+        # лише тривога на всю Київську область; «м. Київ» теж має тип oblast, але це не наш регіон
+        return ac.get("count_whole_oblast", True) and ac.get("oblast_title", "київська область") in title
     if lt == "raion":
         return any(w.lower() in title for w in ac["raion_words"])
     return any(w.lower() in title for w in ac["match_words"])
