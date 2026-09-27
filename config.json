@@ -124,8 +124,8 @@
   "fuel": {
     "enabled": true,
     "url": "https://index.minfin.com.ua/ua/markets/fuel/tm/",
-    "hour": 12,
-    "latest_hour": 15,
+    "hour": 9,
+    "latest_hour": 21,
     "always_weekdays": [
       0
     ],
@@ -176,7 +176,13 @@
         25,
         80
       ]
-    }
+    },
+    "local_stations": [
+      {
+        "name": "WOG Буча, Нове шосе, 81",
+        "wog_id": 1145
+      }
+    ]
   },
   "laws": {
     "enabled": true,
