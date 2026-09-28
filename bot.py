@@ -708,6 +708,56 @@ def get_wog_station(station_id: int) -> dict:
     return out
 
 
+UA_HEADERS = {"Accept-Language": "uk",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"}
+
+
+def _num(v) -> float | None:
+    m = NUM_RE.search(str(v))
+    return float(m.group().replace(",", ".")) if m else None
+
+
+def site_okko() -> dict:
+    """OKKO: API сайту okko.ua — коди A-95, DP (звичайне, не Pulls), SPBT (газ)."""
+    j = HTTP.get("https://www.okko.ua/api/uk/fuels", headers=UA_HEADERS, timeout=TIMEOUT).json()
+    found = {}
+    def walk(o):
+        if isinstance(o, list):
+            for x in o: walk(x)
+        elif isinstance(o, dict):
+            if "price" in o and "fuel_code" in o:
+                found.setdefault(str(o["fuel_code"]).upper(), _num(o["price"]))
+            for x in o.values(): walk(x)
+    walk(j)
+    return {k: v for k, v in {"А-95": found.get("A-95"), "ДП": found.get("DP"), "Газ": found.get("SPBT")}.items() if v}
+
+
+def site_upg() -> dict:
+    """UPG: головна upg.ua — у коді сторінки є JSON «objmap» з цінами (A-95, EURO DIESEL, Газ)."""
+    h = HTTP.get("https://upg.ua/", headers=UA_HEADERS, timeout=TIMEOUT).text
+    m = re.search(r"var\s+objmap\s*=\s*(\{.*?\});", h, re.S)
+    if not m:
+        return {}
+    fuels = {str(f.get("Title", "")).upper(): _num(f.get("Price")) for f in json.loads(m.group(1)).get("FuelsAsArray", [])}
+    return {k: v for k, v in {"А-95": fuels.get("A-95"), "ДП": fuels.get("EURO DIESEL") or fuels.get("ДП"),
+                              "Газ": fuels.get("ГАЗ")}.items() if v}
+
+
+def site_klo() -> dict:
+    """KLO: головна klo.ua — блоки «general-price-item» (А-95, Diesel Euro, Газ)."""
+    h = HTTP.get("https://www.klo.ua/", headers=UA_HEADERS, timeout=TIMEOUT).text
+    items = {html.unescape(t).strip().lower(): _num(v) for t, v in re.findall(
+        r'general-price-item__title">\s*([^<]+?)\s*</div>\s*<div class="general-price-item__value">\s*([^<]+)</div>', h)}
+    return {k: v for k, v in {"А-95": items.get("а-95"), "ДП": items.get("diesel euro"), "Газ": items.get("газ")}.items() if v}
+
+
+def site_wog(station_id: int) -> dict:
+    return get_wog_station(station_id)
+
+
+SITE_PARSERS = {"okko": site_okko, "upg": site_upg, "klo": site_klo}
+
+
 def get_fuel_prices() -> dict:
     """{мережа: {пальне: ціна}} з таблиці цін за мережами."""
     fc = CFG["fuel"]
@@ -764,98 +814,83 @@ def get_fuel_prices() -> dict:
     return result
 
 
-def build_fuel(now: datetime, prices: dict, prev: dict, local: dict | None = None, prev_local: dict | None = None) -> str:
+def build_fuel(now: datetime, prices: dict, prev: dict, source: dict | None = None) -> str:
     fuels = list(CFG["fuel"]["fuels"])
+    source = source or {}
     changes = []
-    txt = f"⛽️ <b>Ціни на пальне</b> · {ua_date(now.date())}\n"
-    if prices:
-        w = max(len(n) for n in prices) + 1
-        lines = [" " * w + "".join(f"{f:>8}" for f in fuels)]
-        for net in CFG["fuel"]["networks"]:
-            if net not in prices:
-                continue
-            cells = ""
-            for f in fuels:
-                v = prices[net].get(f)
-                cells += f"{v:8.2f}" if v else f"{'—':>8}"
-                old = prev.get(net, {}).get(f)
-                if v and old and abs(v - old) >= 0.01:
-                    d = v - old
-                    changes.append(f"{'🔺' if d > 0 else '🔻'} {net}, {f}: {'+' if d > 0 else '−'}{abs(d):.2f} грн")
-            lines.append(f"{net:<{w}}{cells}")
-        txt += f"<pre>{esc(chr(10).join(lines))}</pre>"
-    # ціни на заправках біля нас (з API мереж)
-    for name, lp in (local or {}).items():
-        if not lp:
+    w = max(len(n) for n in prices) + 2
+    lines = [" " * w + "".join(f"{f:>8}" for f in fuels)]
+    for net in CFG["fuel"]["networks"]:
+        if net not in prices:
             continue
-        parts = []
+        cells = ""
         for f in fuels:
-            v = lp.get(f)
-            if not v:
-                continue
-            old = (prev_local or {}).get(name, {}).get(f)
-            mark = ""
-            if old and abs(v - old) >= 0.01:
+            v = prices[net].get(f)
+            cells += f"{v:8.2f}" if v else f"{'—':>8}"
+            old = prev.get(net, {}).get(f)
+            if v and old and abs(v - old) >= 0.01:
                 d = v - old
-                mark = f" ({'🔺+' if d > 0 else '🔻−'}{abs(d):.2f})"
-            parts.append(f"{f} {v:.2f}{mark}")
-        txt += f"\n📍 <b>{esc(name)}:</b> " + " · ".join(parts)
+                changes.append(f"{'🔺' if d > 0 else '🔻'} {net}, {f}: {'+' if d > 0 else '−'}{abs(d):.2f} грн")
+        star = "*" if source.get(net) == "minfin" else ""
+        lines.append(f"{net + star:<{w}}{cells}")
+    txt = (f"⛽️ <b>Ціни на пальне</b> · {ua_date(now.date())}\n"
+           f"<pre>{esc(chr(10).join(lines))}</pre>")
     if changes:
-        txt += "\n\n<b>Зміни:</b>\n" + "\n".join(changes)
-    elif prev and prices:
-        txt += "\n\nЦіни мереж без змін ✅"
-    src = "середні ціни мереж по Україні · дані Мінфіну"
-    if FUEL_META.get("minfin_updated"):
-        src += f" на {FUEL_META['minfin_updated']}"
-    if local:
-        src += " · 📍 ціни АЗК — з сайту мережі"
-    txt += f"\n<i>грн за літр · {src}</i>"
+        txt += "\n<b>Зміни:</b>\n" + "\n".join(changes)
+    elif prev:
+        txt += "\nЦіни без змін ✅"
+    note = "грн за літр · ціни з сайтів мереж"
+    if any(v == "minfin" for v in source.values()):
+        note += " · * дані Мінфіну" + (f" на {FUEL_META['minfin_updated']}" if FUEL_META.get("minfin_updated") else "")
+    txt += f"\n<i>{note}</i>"
     return txt
 
 
 def run_fuel(state: dict, now: datetime) -> None:
-    """Перевіряє ціни при кожному запуску у вікні годин і публікує, щойно щось змінилось.
-    Два незалежні джерела: таблиця Мінфіну (мережі по Україні) та API WOG (АЗК біля нас).
-    Якщо одне джерело недоступне — працюємо з іншим."""
+    """Ціни з офіційних сайтів мереж (основне джерело). Якщо сайт мережі не відповів —
+    беремо її ціни з таблиці Мінфіну. Перевіряємо при кожному запуску у вікні годин
+    і публікуємо, щойно щось змінилось (і щопонеділка)."""
     fc = CFG["fuel"]
     today = now.date().isoformat()
-    prices, local, errs = {}, {}, []
-    try:
-        prices = get_fuel_prices()
-        filled = sum(len(v) for v in prices.values())
-        if prices and filled < len(prices) * len(fc["fuels"]) * 0.6:
-            errs.append(f"таблиця Мінфіну розібрана підозріло ({filled} цін)")
-            prices = {}
-    except Exception as e:
-        errs.append(f"Мінфін: {e}")
-    for st in fc.get("local_stations", []):
+    prices, source, errs = {}, {}, []
+    for net, cfg in fc.get("sites", {}).items():
         try:
-            if st.get("wog_id"):
-                lp = get_wog_station(st["wog_id"])
-                if lp:
-                    local[st["name"]] = lp
+            if cfg.get("type") == "wog":
+                p = site_wog(cfg["station"])
+            else:
+                p = SITE_PARSERS[cfg["type"]]()
+            p = {f: v for f, v in p.items() if fc["sane"][f][0] <= v <= fc["sane"][f][1]}
+            if len(p) >= 2:
+                prices[net], source[net] = p, "site"
+            else:
+                errs.append(f"{net}: на сайті знайдено замало цін {p}")
         except Exception as e:
-            errs.append(f"{st['name']}: {e}")
+            errs.append(f"{net}: {e}")
+    missing = [n for n in fc["networks"] if n not in prices]
+    if missing:
+        try:
+            mf = get_fuel_prices()
+            for n in missing:
+                if mf.get(n):
+                    prices[n], source[n] = mf[n], "minfin"
+        except Exception as e:
+            errs.append(f"Мінфін: {e}")
     for e in errs:
         print(f"[пальне] {e}", file=sys.stderr)
-    print(f"[пальне] Мінфін: {len(prices)} мереж (оновлення {FUEL_META.get('minfin_updated') or '?'}), поруч: {local}")
-    if not prices and not local:
-        raise RuntimeError("жодне джерело цін не відповіло: " + "; ".join(errs))
+    print(f"[пальне] джерела: {source}; ціни: {prices}")
+    if len(prices) < 2:
+        raise RuntimeError("ціни отримано менше ніж для 2 мереж: " + "; ".join(errs))
 
     prev = state.get("fuel_last", {})
-    prev_local = state.get("fuel_local_last", {})
-    # порівнюємо лише те, що вдалось отримати зараз
-    changed = (bool(prices) and prices != prev) or (bool(local) and local != prev_local)
+    # порівнюємо лише мережі, які вдалось отримати зараз
+    changed = any(prices[n] != prev.get(n) for n in prices)
     posted_today = state.get("last_fuel_post") == today
     weekly = now.weekday() in fc["always_weekdays"] and not posted_today
     if FORCE == "fuel" or changed or weekly or (not fc["only_if_changed"] and not posted_today):
-        send(build_fuel(now, prices, prev, local, prev_local))
+        send(build_fuel(now, prices, prev, source))
         print("✓ пальне")
         if not FORCE:
-            if prices:
-                state["fuel_last"] = prices
-            if local:
-                state["fuel_local_last"] = local
+            state["fuel_last"] = {**prev, **prices}
             state["last_fuel_post"] = today
     else:
         print("пальне: без змін, пост не потрібен")
