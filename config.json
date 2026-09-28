@@ -131,20 +131,20 @@
     ],
     "only_if_changed": true,
     "networks": {
-      "OKKO": [
-        "окко",
-        "okko"
-      ],
       "WOG": [
         "wog",
         "вог"
       ],
-      "SOCAR": [
-        "socar",
-        "сокар"
+      "OKKO": [
+        "окко",
+        "okko"
       ],
       "UPG": [
         "upg"
+      ],
+      "KLO": [
+        "klo",
+        "кло"
       ],
       "Укрнафта": [
         "укрнафт",
@@ -177,12 +177,21 @@
         80
       ]
     },
-    "local_stations": [
-      {
-        "name": "WOG Буча, Нове шосе, 81",
-        "wog_id": 1145
+    "sites": {
+      "WOG": {
+        "type": "wog",
+        "station": 1145
+      },
+      "OKKO": {
+        "type": "okko"
+      },
+      "UPG": {
+        "type": "upg"
+      },
+      "KLO": {
+        "type": "klo"
       }
-    ]
+    }
   },
   "laws": {
     "enabled": true,
