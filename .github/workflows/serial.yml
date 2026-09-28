@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Publish part
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || '@bucha_irpin_hostomel' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
           PART: ${{ github.event.inputs.part }}
         run: python3 serial/post_serial.py
