@@ -1,0 +1,23 @@
+name: Повість з продовженням
+
+on:
+  schedule:
+    - cron: "0 12 * * *"   # 15:00 за Києвом (UTC+3, до 25 жовтня)
+  workflow_dispatch:
+    inputs:
+      part:
+        description: "Номер частини (0 — анонс рубрики, 1–14). Порожньо — за датою"
+        required: false
+        default: ""
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish part
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || '@bucha_irpin_hostomel' }}
+          PART: ${{ github.event.inputs.part }}
+        run: python3 serial/post_serial.py
