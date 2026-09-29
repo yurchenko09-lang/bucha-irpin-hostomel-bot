@@ -64,5 +64,16 @@
     }
   },
   "last_fuel_post": "2026-09-28",
-  "last_weekly": "2026-W40"
+  "last_weekly": "2026-W40",
+  "fuel_sources": {
+    "date": "2026-09-29",
+    "src": {
+      "WOG": "site",
+      "OKKO": "site",
+      "UPG": "site",
+      "KLO": "site",
+      "Укрнафта": "minfin"
+    },
+    "errs": []
+  }
 }
