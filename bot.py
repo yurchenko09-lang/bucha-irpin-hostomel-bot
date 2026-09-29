@@ -891,7 +891,8 @@ def get_fuel_prices() -> dict:
         "Accept-Language": "uk",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"})
     r.raise_for_status()
-    m_upd = re.search(r"оновлення:\s*(\d{2}\.\d{2})\.\d{4}\s+(\d{1,2}:\d{2})", r.text)
+    gap = r"(?:\s|&nbsp;|&#160;|\xa0|<[^>]+>)*"          # між словами можуть бути теги й нерозривні пробіли
+    m_upd = re.search(r"оновлення:" + gap + r"(\d{2}\.\d{2})\.\d{4}" + gap + r"(\d{1,2}:\d{2})", r.text)
     FUEL_META["minfin_updated"] = f"{m_upd.group(1)} {m_upd.group(2)}" if m_upd else ""
     p = TableParser()
     p.feed(r.text)
