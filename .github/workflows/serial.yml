@@ -2,22 +2,43 @@ name: Повість з продовженням
 
 on:
   schedule:
-    - cron: "0 12 * * *"   # 15:00 за Києвом (UTC+3, до 25 жовтня)
+    # кілька спроб після 15:00 за Києвом — на випадок, якщо GitHub пропустить запуск
+    - cron: "3 12 * * *"
+    - cron: "33 12 * * *"
+    - cron: "3 13 * * *"
+    - cron: "33 14 * * *"
   workflow_dispatch:
     inputs:
       part:
-        description: "Номер частини (0 — анонс рубрики, 1–14). Порожньо — за датою"
+        description: "Номер частини (0 — анонс, 1–14). Порожньо — наступна за чергою"
         required: false
         default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: serial
+  cancel-in-progress: false
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Publish part
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           PART: ${{ github.event.inputs.part }}
         run: python3 serial/post_serial.py
+      - name: Save state
+        run: |
+          if ! git diff --quiet serial/state.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add serial/state.json
+            git commit -m "serial state: $(date -u +%FT%TZ)"
+            git pull --rebase
+            git push
+          fi
