@@ -125,7 +125,7 @@
     "enabled": true,
     "url": "https://index.minfin.com.ua/ua/markets/fuel/tm/",
     "hour": 9,
-    "latest_hour": 21,
+    "latest_hour": 22,
     "always_weekdays": [
       0
     ],
@@ -191,7 +191,8 @@
       "KLO": {
         "type": "klo"
       }
-    }
+    },
+    "evening_hour": 19
   },
   "laws": {
     "enabled": true,
