@@ -941,7 +941,7 @@ def get_fuel_prices() -> dict:
     return result
 
 
-def build_fuel(now: datetime, prices: dict, prev: dict, source: dict | None = None) -> str:
+def build_fuel(now: datetime, prices: dict, prev: dict, source: dict | None = None, evening: bool = False) -> str:
     fuels = list(CFG["fuel"]["fuels"])
     source = source or {}
     changes = []
@@ -960,7 +960,8 @@ def build_fuel(now: datetime, prices: dict, prev: dict, source: dict | None = No
                 changes.append(f"{'🔺' if d > 0 else '🔻'} {net}, {f}: {'+' if d > 0 else '−'}{abs(d):.2f} грн")
         star = "*" if source.get(net) == "minfin" else ""
         lines.append(f"{net + star:<{w}}{cells}")
-    txt = (f"⛽️ <b>Ціни на пальне</b> · {ua_date(now.date())}\n"
+    title = "Ціни на пальне ввечері" if evening else "Ціни на пальне"
+    txt = (f"⛽️ <b>{title}</b> · {ua_date(now.date())}\n"
            f"<pre>{esc(chr(10).join(lines))}</pre>")
     if changes:
         txt += "\n<b>Зміни:</b>\n" + "\n".join(changes)
@@ -1014,14 +1015,19 @@ def run_fuel(state: dict, now: datetime) -> None:
     changed = any(prices[n] != prev.get(n) for n in prices)
     posted_today = state.get("last_fuel_post") == today
     weekly = now.weekday() in fc["always_weekdays"] and not posted_today
-    if FORCE == "fuel" or changed or weekly or (not fc["only_if_changed"] and not posted_today):
-        send(build_fuel(now, prices, prev, source))
+    # вечірній пост — щодня, навіть без змін (config: fuel.evening_hour)
+    eh = fc.get("evening_hour")
+    evening = eh is not None and now.hour >= eh and state.get("last_fuel_evening") != today
+    if FORCE == "fuel" or changed or weekly or evening or (not fc["only_if_changed"] and not posted_today):
+        send(build_fuel(now, prices, prev, source, evening=evening and not changed))
         print("✓ пальне")
         if not FORCE and not DRY_RUN:
             mark_posted(state, "пальне", now)
         if not FORCE:
             state["fuel_last"] = {**prev, **prices}
             state["last_fuel_post"] = today
+            if eh is not None and now.hour >= eh:
+                state["last_fuel_evening"] = today
     else:
         print("пальне: без змін, пост не потрібен")
     state["last_fuel"] = today
