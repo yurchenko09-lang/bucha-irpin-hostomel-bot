@@ -14,11 +14,13 @@
   CHAT_ID        — куди публікувати: @назва_каналу, або ваш числовий ID для тестів
   ALERTS_TOKEN   — токен alerts.in.ua (необов'язково: без нього блок тривог пропускається)
   DRY_RUN=1      — нічого не надсилати, лише надрукувати пост у лог
-  FORCE=morning|weekly|air|news|cinema|fuel|laws — примусово зібрати пост зараз (для перевірки)
+  FORCE=morning|weekly|air|news|cinema|fuel|laws|report — примусово зібрати пост зараз (для перевірки)
+  ADMIN_CHAT_ID  — ваш особистий чат: сповіщення про збої та щоденний звіт
 """
 
 import html
 import json
+import re
 import os
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -37,6 +39,8 @@ CHAT_ID = os.getenv("CHAT_ID", "").strip()
 ALERTS_TOKEN = os.getenv("ALERTS_TOKEN", "").strip()
 DRY_RUN = os.getenv("DRY_RUN", "").strip() in ("1", "true", "yes") or not BOT_TOKEN
 FORCE = os.getenv("FORCE", "").strip().lower()
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "").strip()   # ваш особистий чат: сюди йдуть збої та щоденний звіт
+ERRLOG: list[str] = []                                   # помилки поточного запуску
 
 HTTP = requests.Session()
 HTTP.headers["User-Agent"] = "bucha-region-bot/1.0"
@@ -92,6 +96,48 @@ def ua_date(d: date) -> str:
     return f"{d.day} {UA_MONTHS_GEN[d.month - 1]}"
 
 
+def err(task: str, e) -> None:
+    """Записати помилку задачі: у лог і в список для сповіщення адміну."""
+    print(f"✗ {task}: {e}", file=sys.stderr)
+    ERRLOG.append(f"{task}: {str(e)[:300]}")
+
+
+def send_admin(text: str) -> None:
+    """Службове повідомлення вам особисто (не в канал)."""
+    if DRY_RUN or not ADMIN_CHAT_ID:
+        print("──── адміну ────\n" + text)
+        return
+    try:
+        HTTP.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                  data={"chat_id": ADMIN_CHAT_ID, "text": text, "parse_mode": "HTML",
+                        "disable_web_page_preview": "true"}, timeout=TIMEOUT)
+    except Exception as e:
+        print(f"[адмін] не вдалося надіслати: {e}", file=sys.stderr)
+
+
+def mark_posted(state: dict, name: str, now: datetime) -> None:
+    """Що й коли опубліковано сьогодні — для щоденного звіту."""
+    log = state.get("posts_log") or {}
+    if log.get("date") != now.date().isoformat():
+        log = {"date": now.date().isoformat(), "items": {}}
+    log["items"][name] = now.strftime("%H:%M")
+    state["posts_log"] = log
+
+
+def send_photo(png: bytes, caption: str) -> None:
+    if DRY_RUN:
+        (BASE / "calendar_preview.png").write_bytes(png)
+        print("──── DRY RUN: фото (calendar_preview.png) ────")
+        print(caption)
+        print("──────────────────────")
+        return
+    r = HTTP.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                  data={"chat_id": CHAT_ID, "caption": caption, "parse_mode": "HTML"},
+                  files={"photo": ("calendar.png", png, "image/png")}, timeout=60)
+    if not r.ok:
+        raise RuntimeError(f"Telegram помилка {r.status_code}: {r.text[:300]}")
+
+
 def send(text: str) -> None:
     if DRY_RUN:
         print("──── DRY RUN: пост ────")
@@ -142,7 +188,7 @@ def get_weather() -> dict:
     return r.json()
 
 
-def weather_block(w: dict) -> str:
+def weather_block(w: dict, with_sun: bool = True) -> str:
     d = {k: v[0] for k, v in w["daily"].items()}
     cur = w.get("current", {})
     icon, desc = WMO.get(int(d["weather_code"]), ("🌡", ""))
@@ -157,7 +203,8 @@ def weather_block(w: dict) -> str:
                      + (f", до {d['precipitation_sum']:.0f} мм" if d["precipitation_sum"] >= 1 else ""))
     lines.append(f"💨 Вітер до {d['wind_speed_10m_max']:.0f} м/с, пориви до {d['wind_gusts_10m_max']:.0f} м/с")
     sr, ss = d["sunrise"][-5:], d["sunset"][-5:]
-    lines.append(f"🌅 Схід {sr} · захід {ss}")
+    if with_sun:
+        lines.append(f"🌅 Схід {sr} · захід {ss}")
 
     ww = CFG["weather_warnings"]
     warn = []
@@ -377,17 +424,93 @@ def namedays_line(d: date) -> str:
     return f"🎂 <b>Іменини:</b> {esc(', '.join(names))}" if names else ""
 
 
-def build_morning(now: datetime) -> str:
+UA_HISTORY = re.compile(r"україн|київ|козак|гетьман|запоріз|січ[іо]|львів|харків|одес|дніпр|чернігів|полтав|"
+                        r"буч|ірпін|гостомел|оун|упа|унр|хмельницьк|шевченк|франк|леся|мазеп|сагайдачн|"
+                        r"чорнобил|крим|донбас|волин|галич|переяслав", re.I)
+
+
+def _wiki_clean(t: str) -> str:
+    t = re.sub(r"<ref[^>]*/>|<ref[^>]*>.*?</ref>", "", t, flags=re.S)
+    for _ in range(3):
+        t = re.sub(r"\{\{[^{}]*\}\}", "", t)
+    t = re.sub(r"\[\[(?:[^\]|]*\|)?([^\]]*)\]\]", r"\1", t)
+    t = re.sub(r"\[https?://\S+\s*([^\]]*)\]", r"\1", t)
+    t = re.sub(r"<[^>]+>", "", t).replace("'''", "").replace("''", "")
+    return re.sub(r"\s+", " ", t).strip(" *:;")
+
+
+def history_event(d: date) -> str:
+    """Одна подія цього дня, пов'язана з Україною, з української Вікіпедії («Події»)."""
+    title = f"{d.day}_{UA_MONTHS_GEN[d.month - 1]}"
+    api = "https://uk.wikipedia.org/w/api.php"
+    hdr = {"User-Agent": "bucha-region-bot/1.0 (Telegram channel; contact via GitHub)"}
+    secs = HTTP.get(api, params={"action": "parse", "page": title, "prop": "sections", "format": "json"},
+                    headers=hdr, timeout=TIMEOUT).json()["parse"]["sections"]
+    idx = next((x["index"] for x in secs if x["line"].strip().startswith("Події")), None)
+    if not idx:
+        return ""
+    wt = HTTP.get(api, params={"action": "parse", "page": title, "prop": "wikitext", "section": idx, "format": "json"},
+                  headers=hdr, timeout=TIMEOUT).json()["parse"]["wikitext"]["*"]
+    events = []
+    for line in wt.splitlines():
+        if not line.startswith("*"):
+            continue
+        t = _wiki_clean(line)
+        m = re.match(r"^(\d{3,4})\s*(?:р\.)?\s*[—–-]+\s*(.+)$", t)
+        if m and UA_HISTORY.search(m.group(2)) and 20 <= len(m.group(2)) <= 260:
+            events.append((m.group(1), m.group(2).rstrip(".")))
+    if not events:
+        return ""
+    year, text = events[(d.toordinal() * 7) % len(events)]      # стабільний вибір на день
+    return f"{year} — {text[0].upper() + text[1:]}"
+
+
+def day_length(sr: str, ss: str) -> str:
+    try:
+        h1, m1 = map(int, sr.split(":")); h2, m2 = map(int, ss.split(":"))
+        mins = (h2 * 60 + m2) - (h1 * 60 + m1)
+        return f"{mins // 60} год {mins % 60:02d} хв"
+    except Exception:
+        return ""
+
+
+def build_calendar(now: datetime, w: dict | None) -> tuple[bytes, str]:
+    import calendar_card as cc
     today = now.date()
-    head = (f"{greeting(now)}\n"
-            f"{UA_WEEKDAYS[today.weekday()].capitalize()}, {ua_date(today)} · {esc(CFG['area_name'])}")
-    w = safe(get_weather)
+    sr = ss = ""
+    if w:
+        sr, ss = w["daily"]["sunrise"][0][-5:], w["daily"]["sunset"][0][-5:]
+    names = json.loads((BASE / "namedays.json").read_text(encoding="utf-8")).get(f"{today.month:02d}-{today.day:02d}")
+    png, meta = cc.render(today, sr, ss, day_length(sr, ss), names, CFG["area_name"])
+    hol = meta["holidays"]
+    cap = [f"🗓 <b>{ua_date(today).capitalize()}, {UA_WEEKDAYS[today.weekday()]}</b>"]
+    lines = ([f"🇺🇦 {esc(h)}" for h in hol["state"]] + [f"⛪️ {esc(h)}" for h in hol["church"]] +
+             [f"🛠 {esc(h)}" for h in hol["professional"]])
+    if lines:
+        cap.append("\n".join(lines))
+    ev = safe(history_event, today)
+    if ev:
+        cap.append(f"📜 <b>Цей день в історії:</b> {esc(ev)}")
+    if names and meta.get("names_cut"):
+        cap.append(f"🎂 <b>Іменини:</b> {esc(', '.join(names))}")
+    caption = "\n\n".join(cap)
+    if len(caption) > 1000:                       # ліміт підпису до фото в Telegram — 1024 символи
+        caption = caption[:990].rsplit("\n", 1)[0] + "\n…"
+    return png, caption
+
+
+def build_morning(now: datetime, w: dict | None = None, with_calendar: bool = False) -> str:
+    today = now.date()
+    head = (f"{greeting(now)}\n" + (esc(CFG['area_name']) if with_calendar else
+            f"{UA_WEEKDAYS[today.weekday()].capitalize()}, {ua_date(today)} · {esc(CFG['area_name'])}"))
+    if w is None:
+        w = safe(get_weather)
     blocks = [
         safe(night_alerts_block, now),
-        weather_block(w) if w else "",
+        weather_block(w, with_sun=not with_calendar) if w else "",
         (air_line(a) if (a := safe(get_air)) else ""),
         safe(currency_block, today),
-        safe(namedays_line, today),
+        "" if with_calendar else safe(namedays_line, today),
     ]
     body = "\n\n".join(b for b in blocks if b)
     if not body:
@@ -878,6 +1001,7 @@ def run_fuel(state: dict, now: datetime) -> None:
     for e in errs:
         print(f"[пальне] {e}", file=sys.stderr)
     print(f"[пальне] джерела: {source}; ціни: {prices}")
+    state["fuel_sources"] = {"date": today, "src": source, "errs": errs[:5]}
     if len(prices) < 2:
         raise RuntimeError("ціни отримано менше ніж для 2 мереж: " + "; ".join(errs))
 
@@ -889,6 +1013,8 @@ def run_fuel(state: dict, now: datetime) -> None:
     if FORCE == "fuel" or changed or weekly or (not fc["only_if_changed"] and not posted_today):
         send(build_fuel(now, prices, prev, source))
         print("✓ пальне")
+        if not FORCE and not DRY_RUN:
+            mark_posted(state, "пальне", now)
         if not FORCE:
             state["fuel_last"] = {**prev, **prices}
             state["last_fuel_post"] = today
@@ -1048,6 +1174,8 @@ def run_laws(state: dict, now: datetime) -> None:
             lines.append(f"{icon} <b>{esc(d['title'])}</b>\n{who}{link}")
         send("\n\n".join(lines))
         print("✓ укази")
+        if not FORCE and not DRY_RUN:
+            mark_posted(state, "укази", now)
     else:
         print("[укази] важливих документів немає — пост не публікую")
 
@@ -1057,6 +1185,78 @@ def run_laws(state: dict, now: datetime) -> None:
 
 
 # ───────────────────────────── розклад ─────────────────────────────
+
+# ───────────────────── самоконтроль: збої та щоденний звіт ─────────────────────
+
+def notify_errors(state: dict, now: datetime) -> None:
+    log = [x for x in state.get("errlog", []) if now.timestamp() - x[0] < 7 * 86400]
+    sent = state.get("err_sent", {})
+    fresh = []
+    for e in ERRLOG:
+        log.append([now.timestamp(), e])
+        key = e.split(":")[0]
+        if now.timestamp() - sent.get(key, 0) >= 6 * 3600:
+            sent[key] = now.timestamp()
+            fresh.append(e)
+    state["errlog"] = log[-60:]
+    state["err_sent"] = sent
+    if fresh and not FORCE:
+        send_admin("⚠️ <b>Бот: збій</b> · " + now.strftime("%d.%m %H:%M") + "\n\n" +
+                   "\n".join(f"• {esc(x)}" for x in fresh) +
+                   "\n\n<i>Та сама помилка повториться в сповіщенні не раніше ніж за 6 год.</i>")
+
+
+def build_report(state: dict, now: datetime) -> str:
+    today = now.date().isoformat()
+    rc = CFG.get("monitor", {})
+    L = [f"📋 <b>Звіт бота</b> · {ua_date(now.date())}"]
+    # пости за день
+    items = (state.get("posts_log") or {}).get("items", {}) if (state.get("posts_log") or {}).get("date") == today else {}
+    expect = ["ранковий пост"] + (["кіно"] if CFG.get("cinema", {}).get("enabled") else [])
+    posts = [f"{'✅' if n in items else '❌'} {n}" + (f" {items[n]}" if n in items else " — не вийшов") for n in expect]
+    posts += [f"✅ {n} {t}" for n, t in items.items() if n not in expect]
+    L.append("\n<b>Пости сьогодні:</b>\n" + "\n".join(posts))
+    # пальне: звідки взялись ціни
+    fs = state.get("fuel_sources") or {}
+    if fs.get("date") == today:
+        src = " · ".join(f"{n} {'✅' if v == 'site' else '⚠️Мінфін'}" for n, v in fs.get("src", {}).items())
+        L.append(f"\n⛽️ <b>Пальне</b> (перевірка {state.get('last_fuel', '?')}): {src}")
+        if fs.get("errs"):
+            L.append("   " + "; ".join(esc(e) for e in fs["errs"][:3]))
+    else:
+        L.append("\n⛽️ <b>Пальне:</b> ❌ сьогодні жодної перевірки")
+    # воркер тривог
+    url = rc.get("worker_url")
+    if url:
+        try:
+            st = HTTP.get(url.rstrip("/") + "/status", timeout=TIMEOUT).json()
+            hb = st.get("hb") or {}
+            age = (now.timestamp() * 1000 - hb.get("t", 0)) / 60000 if hb.get("t") else None
+            b = st.get("stan_bota") or {}
+            line = "🛰 <b>Воркер тривог:</b> "
+            line += (f"✅ працює (остання відмітка {int(age)} хв тому)" if age is not None and age < 90
+                     else "❌ немає відміток роботи понад 1,5 год — перевірте Cloudflare")
+            line += f"\n   Тривог за день: {b.get('count', '?')}" + (" · 🔴 зараз триває" if b.get("active") else "")
+            if hb.get("err"):
+                line += f"\n   Остання помилка: {esc(str(hb['err'])[:150])}"
+            L.append("\n" + line)
+            ps = HTTP.get(url.rstrip("/") + "/ps", timeout=TIMEOUT).json()
+            L.append("📡 <b>Джерела руху загроз:</b> " + " · ".join(
+                f"{ch} {'✅ ' + str(v.get('povidomlen')) if v.get('povidomlen') else '❌ ' + esc(str(v.get('pomylka', 'порожньо'))[:60])}"
+                for ch, v in ps.items()))
+        except Exception as e:
+            L.append(f"\n🛰 <b>Воркер тривог:</b> ❌ не відповідає ({esc(str(e)[:120])})")
+    # помилки за добу
+    errs = [x for x in state.get("errlog", []) if now.timestamp() - x[0] < 86400] + [[now.timestamp(), e] for e in ERRLOG]
+    if errs:
+        L.append(f"\n⚠️ <b>Помилок за добу: {len(errs)}</b>\n" + "\n".join(
+            f"• {datetime.fromtimestamp(t, TZ):%H:%M} {esc(e[:150])}" for t, e in errs[-5:]))
+    else:
+        L.append("\n✅ Помилок за добу не було")
+    return "\n".join(L)
+
+
+# ───────────────────────────── головна ─────────────────────────────
 
 def main() -> int:
     now = now_kyiv()
@@ -1070,15 +1270,27 @@ def main() -> int:
     due = not FORCE and m["hour"] <= now.hour < m["latest_hour"] and state.get("last_morning") != today
     if FORCE == "morning" or due:
         try:
-            send(build_morning(now))
+            w = safe(get_weather)
+            cal_ok = False
+            if CFG.get("calendar", {}).get("enabled", True):
+                try:
+                    png, cap = build_calendar(now, w)
+                    send_photo(png, cap)
+                    cal_ok = True
+                    print("✓ відривний календар")
+                except Exception as e:
+                    err("відривний календар", e)
+            send(build_morning(now, w, with_calendar=cal_ok))
             if not FORCE:
                 state["last_morning"] = today
                 if AIR_WARNED_IN_MORNING:  # попередження вже було в ранковому пості
                     state["last_air"] = today
             print("✓ ранковий пост")
+            if not FORCE and not DRY_RUN:
+                mark_posted(state, "ранковий пост", now)
         except Exception as e:
             errors += 1
-            print(f"✗ ранковий пост: {e}", file=sys.stderr)
+            err("ранковий пост", e)
 
     # 2. Тижнева статистика
     wk = CFG["weekly"]
@@ -1091,9 +1303,11 @@ def main() -> int:
             if not FORCE:
                 state["last_weekly"] = week_id
             print("✓ тижнева статистика")
+            if not FORCE and not DRY_RUN:
+                mark_posted(state, "тижнева статистика", now)
         except Exception as e:
             errors += 1
-            print(f"✗ тижнева статистика: {e}", file=sys.stderr)
+            err("тижнева статистика", e)
 
     # 3. Попередження про якість повітря
     ac = CFG["air"]
@@ -1108,9 +1322,11 @@ def main() -> int:
                 if not FORCE:
                     state["last_air"] = today
                 print("✓ попередження про повітря")
+                if not FORCE and not DRY_RUN:
+                    mark_posted(state, "повітря", now)
         except Exception as e:
             errors += 1
-            print(f"✗ якість повітря: {e}", file=sys.stderr)
+            err("якість повітря", e)
 
     # 4. Новини громади
     nc = CFG.get("news", {})
@@ -1119,7 +1335,7 @@ def main() -> int:
             run_news(state, now)
         except Exception as e:
             errors += 1
-            print(f"✗ новини: {e}", file=sys.stderr)
+            err("новини", e)
 
     # 5. Кіно
     cc = CFG.get("cinema", {})
@@ -1131,9 +1347,11 @@ def main() -> int:
             if not FORCE:
                 state["last_cinema"] = today
             print("✓ кіно")
+            if not FORCE and not DRY_RUN:
+                mark_posted(state, "кіно", now)
         except Exception as e:
             errors += 1
-            print(f"✗ кіно: {e}", file=sys.stderr)
+            err("кіно", e)
 
     # 6. Ціни на пальне
     fc = CFG.get("fuel", {})
@@ -1143,7 +1361,7 @@ def main() -> int:
             run_fuel(state, now)
         except Exception as e:
             errors += 1
-            print(f"✗ пальне: {e}", file=sys.stderr)
+            err("пальне", e)
 
     # 7. Укази й постанови (щотижневий дайджест)
     lc = CFG.get("laws", {})
@@ -1154,7 +1372,24 @@ def main() -> int:
             run_laws(state, now)
         except Exception as e:
             errors += 1
-            print(f"✗ укази: {e}", file=sys.stderr)
+            err("укази", e)
+
+    # 8. Щоденний звіт вам особисто
+    rc = CFG.get("monitor", {})
+    due = (not FORCE and rc.get("enabled") and rc.get("report_hour") is not None and rc["report_hour"] <= now.hour < rc.get("report_latest", 23)
+           and state.get("last_report") != today)
+    if FORCE == "report" or due:
+        try:
+            send_admin(build_report(state, now))
+            if not FORCE:
+                state["last_report"] = today
+            print("✓ звіт")
+        except Exception as e:
+            err("звіт", e)
+
+    # 9. Збої — одразу вам особисто (та сама помилка не частіше ніж раз на 6 год); вмикається в config.json → monitor.enabled
+    if rc.get("enabled"):
+        notify_errors(state, now)
 
     if not (DRY_RUN and FORCE):
         save_state(state)
