@@ -63,7 +63,7 @@
       "Газ": 45.5
     }
   },
-  "last_fuel_post": "2026-09-28",
+  "last_fuel_post": "2026-09-29",
   "last_weekly": "2026-W40",
   "fuel_sources": {
     "date": "2026-09-29",
@@ -75,5 +75,12 @@
       "Укрнафта": "minfin"
     },
     "errs": []
-  }
+  },
+  "posts_log": {
+    "date": "2026-09-29",
+    "items": {
+      "пальне": "19:00"
+    }
+  },
+  "last_fuel_evening": "2026-09-29"
 }
