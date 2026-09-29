@@ -289,5 +289,14 @@
       "кубок",
       "консул"
     ]
+  },
+  "monitor": {
+    "enabled": false,
+    "report_hour": 21,
+    "report_latest": 23,
+    "worker_url": "https://big-tryvoha.yurchenko09.workers.dev"
+  },
+  "calendar": {
+    "enabled": true
   }
 }
