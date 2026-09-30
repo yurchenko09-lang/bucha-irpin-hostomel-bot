@@ -70,11 +70,13 @@
     "src": {
       "WOG": "site",
       "OKKO": "site",
-      "UPG": "site",
       "KLO": "site",
+      "UPG": "minfin",
       "Укрнафта": "minfin"
     },
-    "errs": []
+    "errs": [
+      "UPG: на сайті знайдено замало цін {}"
+    ]
   },
   "posts_log": {
     "date": "2026-09-30",
