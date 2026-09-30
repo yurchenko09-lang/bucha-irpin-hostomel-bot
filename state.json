@@ -71,12 +71,10 @@
       "WOG": "site",
       "OKKO": "site",
       "UPG": "site",
-      "KLO": "minfin",
+      "KLO": "site",
       "Укрнафта": "minfin"
     },
-    "errs": [
-      "KLO: HTTPSConnectionPool(host='www.klo.ua', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<HTTPSConnection(host='www.klo.ua', port=443) at 0x7f037cf48f50>, 'Connection to www.klo.ua timed out. (connect timeout=20)'))"
-    ]
+    "errs": []
   },
   "posts_log": {
     "date": "2026-09-30",
