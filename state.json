@@ -70,13 +70,11 @@
     "src": {
       "WOG": "site",
       "OKKO": "site",
+      "UPG": "site",
       "KLO": "site",
-      "UPG": "minfin",
       "Укрнафта": "minfin"
     },
-    "errs": [
-      "UPG: HTTPSConnectionPool(host='upg.ua', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<HTTPSConnection(host='upg.ua', port=443) at 0x7f58d8838f80>, 'Connection to upg.ua timed out. (connect timeout=20)'))"
-    ]
+    "errs": []
   },
   "posts_log": {
     "date": "2026-10-01",
