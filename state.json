@@ -69,14 +69,12 @@
     "date": "2026-10-02",
     "src": {
       "WOG": "site",
+      "OKKO": "site",
       "UPG": "site",
       "KLO": "site",
-      "OKKO": "minfin",
       "Укрнафта": "minfin"
     },
-    "errs": [
-      "OKKO: Expecting value: line 1 column 1 (char 0)"
-    ]
+    "errs": []
   },
   "posts_log": {
     "date": "2026-10-02",
