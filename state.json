@@ -32,7 +32,7 @@
       "Газ": 44.9
     }
   },
-  "last_fuel": "2026-10-03",
+  "last_fuel": "2026-10-04",
   "last_cinema": "2026-10-03",
   "laws_seen": [
     "1150-2026-п",
@@ -89,17 +89,15 @@
   "last_fuel_post": "2026-10-03",
   "last_weekly": "2026-W40",
   "fuel_sources": {
-    "date": "2026-10-03",
+    "date": "2026-10-04",
     "src": {
       "WOG": "site",
       "OKKO": "site",
       "UPG": "site",
-      "KLO": "minfin",
+      "KLO": "site",
       "Укрнафта": "minfin"
     },
-    "errs": [
-      "KLO: HTTPSConnectionPool(host='www.klo.ua', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<HTTPSConnection(host='www.klo.ua', port=443) at 0x7f04dfb64cb0>, 'Connection to www.klo.ua timed out. (connect timeout=20)'))"
-    ]
+    "errs": []
   },
   "posts_log": {
     "date": "2026-10-04",
