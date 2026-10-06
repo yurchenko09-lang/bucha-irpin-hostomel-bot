@@ -94,10 +94,11 @@
       "WOG": "site",
       "OKKO": "site",
       "UPG": "site",
-      "KLO": "site",
-      "Укрнафта": "minfin"
+      "KLO": "site"
     },
-    "errs": []
+    "errs": [
+      "Мінфін: HTTPSConnectionPool(host='index.minfin.com.ua', port=443): Read timed out. (read timeout=20)"
+    ]
   },
   "posts_log": {
     "date": "2026-10-06",
