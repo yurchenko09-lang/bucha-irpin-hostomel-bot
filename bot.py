@@ -1091,8 +1091,13 @@ def build_outages(d: date, now: datetime, sched: dict, upd: str, prev: dict | No
         rows = []
     else:
         head = f"⚡️ <b>Графік відключень на {when or title} змінено</b>"
-        rows = [f"<code>{q}</code>  {v or 'без відключень'}  <i>(було: {prev.get(q) or 'без відключень'})</i>"
-                for q, v in sched.items() if prev.get(q, "") != v]
+        rows = []
+        for q, v in sched.items():
+            hours = v or "без відключень"
+            if prev.get(q, "") != v:
+                hours = f"<b>{hours}</b>"                                    # змінені черги — жирним
+            rows.append(f"<code>{q}</code>  {hours}")
+        rows += ["", "<b>Жирним</b> — черги, для яких години змінились."]
     foot = "Буча · Ірпінь · Гостомель — графік за чергами однаковий для всієї області.\n"
     foot += f"Дані ДТЕК{', оновлено ' + upd[:16] if upd else ''}. Свою чергу шукайте за адресою на " \
             f"<a href=\"https://www.dtek-krem.com.ua/ua/shutdowns\">сайті ДТЕК</a>."
