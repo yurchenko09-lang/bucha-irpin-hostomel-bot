@@ -299,5 +299,14 @@
   },
   "calendar": {
     "enabled": true
+  },
+  "outages": {
+    "enabled": true,
+    "url": "https://raw.githubusercontent.com/Baskerville42/outage-data-ua/main/data/kyiv-region.json",
+    "max_age_hours": 6,
+    "from_hour": 6,
+    "to_hour": 23,
+    "tomorrow_hour": 18,
+    "changes": true
   }
 }
