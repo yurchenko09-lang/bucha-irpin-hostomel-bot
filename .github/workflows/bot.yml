@@ -12,7 +12,7 @@ on:
       force:
         description: "Примусово зібрати пост"
         type: choice
-        options: [none, morning, weekly, air, news, cinema, fuel, laws, report]
+        options: [none, morning, weekly, air, news, cinema, fuel, outages, laws, report]
         default: none
       dry_run:
         description: "Лише показати в лозі, не надсилати"
