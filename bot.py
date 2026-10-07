@@ -14,7 +14,7 @@
   CHAT_ID        — куди публікувати: @назва_каналу, або ваш числовий ID для тестів
   ALERTS_TOKEN   — токен alerts.in.ua (необов'язково: без нього блок тривог пропускається)
   DRY_RUN=1      — нічого не надсилати, лише надрукувати пост у лог
-  FORCE=morning|weekly|air|news|cinema|fuel|laws|report — примусово зібрати пост зараз (для перевірки)
+  FORCE=morning|weekly|air|news|cinema|fuel|outages|laws|report — примусово зібрати пост зараз (для перевірки)
   ADMIN_CHAT_ID  — ваш особистий чат: сповіщення про збої та щоденний звіт
 """
 
@@ -1033,6 +1033,111 @@ def run_fuel(state: dict, now: datetime) -> None:
     state["last_fuel"] = today
 
 
+
+# ───────────────────────────── графіки відключень ─────────────────────────────
+# Дані ДТЕК Київські регіональні електромережі у готовому вигляді (проєкт outage-data-ua на GitHub
+# знімає їх з офіційного сайту). Графік однаковий для всієї області й залежить від черги за адресою.
+
+OUT_OFF = {"no": (0, 60), "first": (0, 30), "second": (30, 60)}
+OUT_MAYBE = {"maybe": (0, 60), "mfirst": (0, 30), "msecond": (30, 60)}
+
+
+def _hm(m: int) -> str:
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def _out_line(hours: dict) -> str:
+    """Години однієї черги → «06:00–07:00, 13:30–17:30» (можливі відключення — з позначкою)."""
+    def spans(kinds):
+        out = []
+        for i in range(1, 25):
+            k = kinds.get(hours.get(str(i), "yes"))
+            if not k:
+                continue
+            a, b = (i - 1) * 60 + k[0], (i - 1) * 60 + k[1]
+            if out and out[-1][1] == a:
+                out[-1][1] = b
+            else:
+                out.append([a, b])
+        return [f"{_hm(a)}–{_hm(b)}" for a, b in out]
+    parts = spans(OUT_OFF) + [f"можливо {x}" for x in spans(OUT_MAYBE)]
+    return ", ".join(parts)
+
+
+def get_outages(oc: dict, now: datetime) -> tuple[dict, str]:
+    """→ ({"2026-10-07": {"1.1": "15:00–17:30", "1.2": ""}}, "07.10.2026 11:43"). Порожній рядок — без відключень."""
+    r = HTTP.get(oc["url"], timeout=TIMEOUT)
+    r.raise_for_status()
+    d = r.json()
+    checked = _parse_dt(d.get("lastUpdated"))
+    if not checked or now - checked.astimezone(TZ) > timedelta(hours=oc.get("max_age_hours", 6)):
+        raise RuntimeError(f"дані застарілі (остання перевірка {d.get('lastUpdated')})")
+    fact = d.get("fact") or {}
+    days = {}
+    for ts, groups in (fact.get("data") or {}).items():
+        day = datetime.fromtimestamp(int(ts), TZ).date().isoformat()
+        days[day] = {q.replace("GPV", ""): _out_line(h) for q, h in sorted(groups.items())}
+    return days, str(fact.get("update") or "")
+
+
+def build_outages(d: date, now: datetime, sched: dict, upd: str, prev: dict | None = None) -> str:
+    when = "сьогодні" if d == now.date() else "завтра" if d == now.date() + timedelta(days=1) else ""
+    title = f"{when}, {ua_date(d)}" if when else ua_date(d)
+    if prev is None:
+        head = f"💡 <b>Графік відключень на {title}</b>"
+        rows = [f"<code>{q}</code>  {v or 'без відключень'}" for q, v in sched.items()]
+    elif not any(sched.values()):
+        head = f"💡 <b>Графіки відключень на {when or title} скасовано</b>"
+        rows = []
+    else:
+        head = f"⚡️ <b>Графік відключень на {when or title} змінено</b>"
+        rows = [f"<code>{q}</code>  {v or 'без відключень'}  <i>(було: {prev.get(q) or 'без відключень'})</i>"
+                for q, v in sched.items() if prev.get(q, "") != v]
+    foot = "Буча · Ірпінь · Гостомель — графік за чергами однаковий для всієї області.\n"
+    foot += f"Дані ДТЕК{', оновлено ' + upd[:16] if upd else ''}. Свою чергу шукайте за адресою на " \
+            f"<a href=\"https://www.dtek-krem.com.ua/ua/shutdowns\">сайті ДТЕК</a>."
+    return head + ("\n\n" + "\n".join(rows) if rows else "") + "\n\n" + foot
+
+
+def run_outages(state: dict, now: datetime) -> None:
+    oc = CFG["outages"]
+    days, upd = get_outages(oc, now)
+    today, tomorrow = now.date(), now.date() + timedelta(days=1)
+    if FORCE == "outages":
+        for d in (today, tomorrow):
+            if d.isoformat() in days:
+                send(build_outages(d, now, days[d.isoformat()], upd))
+        return
+    st = {k: v for k, v in (state.get("outages") or {}).items() if k >= today.isoformat()}
+    for d in (today, tomorrow):
+        key = d.isoformat()
+        sched = days.get(key)
+        if sched is None:
+            continue
+        prev = st.get(key)
+        if prev is None:
+            # графік на завтра публікуємо ввечері; на сьогодні — одразу, якщо ще не публікували
+            if d == tomorrow and now.hour < oc.get("tomorrow_hour", 18):
+                continue
+            if not any(sched.values()):
+                if d == today:
+                    st[key] = sched          # сьогодні без відключень — мовчимо, але стежимо за змінами
+                continue
+            send(build_outages(d, now, sched, upd))
+        elif prev != sched:
+            if not oc.get("changes", True):
+                st[key] = sched
+                continue
+            send(build_outages(d, now, sched, upd, prev))
+        else:
+            continue
+        st[key] = sched
+        if not DRY_RUN:
+            mark_posted(state, "відключення", now)
+        print(f"✓ відключення {key}")
+    state["outages"] = st
+
+
 # ───────────────────── укази й постанови ─────────────────────
 
 def _walk_records(obj, out):
@@ -1372,6 +1477,16 @@ def main() -> int:
         except Exception as e:
             errors += 1
             err("пальне", e)
+
+    # 6а. Графіки відключень світла (ДТЕК)
+    oc = CFG.get("outages", {})
+    due = not FORCE and oc.get("enabled") and oc.get("from_hour", 6) <= now.hour < oc.get("to_hour", 23)
+    if FORCE == "outages" or due:
+        try:
+            run_outages(state, now)
+        except Exception as e:
+            errors += 1
+            err("відключення", e)
 
     # 7. Укази й постанови (щотижневий дайджест)
     lc = CFG.get("laws", {})
