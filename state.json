@@ -92,12 +92,13 @@
     "date": "2026-10-08",
     "src": {
       "WOG": "site",
-      "OKKO": "site",
       "KLO": "site",
+      "OKKO": "minfin",
       "UPG": "minfin",
       "Укрнафта": "minfin"
     },
     "errs": [
+      "OKKO: Expecting value: line 1 column 1 (char 0)",
       "UPG: на сайті знайдено замало цін {}"
     ]
   },
