@@ -98,7 +98,7 @@
       "Укрнафта": "minfin"
     },
     "errs": [
-      "UPG: HTTPSConnectionPool(host='upg.ua', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<HTTPSConnection(host='upg.ua', port=443) at 0x7fbad1cbf9e0>, 'Connection to upg.ua timed out. (connect timeout=20)'))"
+      "UPG: на сайті знайдено замало цін {}"
     ]
   },
   "posts_log": {
