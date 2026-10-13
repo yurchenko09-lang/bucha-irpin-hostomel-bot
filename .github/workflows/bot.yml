@@ -46,6 +46,7 @@ jobs:
           CHAT_ID: ${{ secrets.CHAT_ID }}
           ALERTS_TOKEN: ${{ secrets.ALERTS_TOKEN }}
           ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+          BIRTHDAYS: ${{ secrets.BIRTHDAYS }}
           FORCE: ${{ github.event.inputs.force != 'none' && github.event.inputs.force || '' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
         run: python bot.py
