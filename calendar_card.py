@@ -46,21 +46,24 @@ def nth_weekday(y: int, m: int, wd: int, n: int) -> date:
     return d - timedelta(days=(d.weekday() - wd) % 7)
 
 
+def _as_list(v) -> list:
+    return [] if v is None else v if isinstance(v, list) else [v]
+
+
 def holidays_for(d: date) -> dict:
     k = d.strftime("%m-%d")
-    out = {"state": [], "professional": [], "church": []}
-    if k in HOL["state"]:
-        out["state"].append(HOL["state"][k])
+    out = {"state": [], "professional": [], "church": [], "world": []}
+    for cat in out:
+        out[cat] += _as_list(HOL.get(cat, {}).get(k))
     out["state"] += [r["name"] for r in HOL["state_rules"] if nth_weekday(d.year, r["m"], r["weekday"], r["nth"]) == d]
-    if k in HOL["professional"]:
-        out["professional"].append(HOL["professional"][k])
     out["professional"] += [r["name"] for r in HOL["professional_rules"]
                             if nth_weekday(d.year, r["m"], r["weekday"], r["nth"]) == d]
-    if k in HOL["church"]:
-        out["church"].append(HOL["church"][k])
     shift = (d - orthodox_easter(d.year)).days
-    if str(shift) in HOL["church_easter"]:
-        out["church"].append(HOL["church_easter"][str(shift)])
+    out["church"] += _as_list(HOL["church_easter"].get(str(shift)))
+    # однакові назви з різних розділів (напр. День молоді 12.08) — лише раз
+    seen = set()
+    for cat in ("state", "church", "professional", "world"):
+        out[cat] = [x for x in out[cat] if not (x in seen or seen.add(x))]
     return out
 
 
@@ -79,7 +82,7 @@ def moon_phase(d: date) -> tuple[str, str]:
 def is_red(d: date, hol: dict) -> bool:
     big_church = {"Різдво Христове", "Великдень — Воскресіння Христове", "Трійця (Зелені свята)",
                   "Богоявлення (Водохреще)", "Покрова Пресвятої Богородиці"}
-    return (d.weekday() == 6 or any(h in HOL["state"].values() and h in (
+    return (d.weekday() == 6 or any(h in (
         "Новий рік", "День Незалежності України", "День Конституції України", "День захисників і захисниць України",
         "День Української Державності") for h in hol["state"]) or any(h in big_church for h in hol["church"]))
 
@@ -151,7 +154,7 @@ def render(d: date, sunrise: str = "", sunset: str = "", daylen: str = "", named
     for x in range(x0 + 10, x1 - 10, 22):
         dr.line((x, y0 + 138, x + 10, y0 + 138), fill=RULE, width=3)
     # число і день тижня
-    n_hol = len(hol["state"]) + len(hol["church"]) + len(hol["professional"])
+    n_hol = len(hol["state"]) + len(hol["church"]) + len(hol["professional"]) + len(hol.get("world", []))
     size = 360 if n_hol <= 2 else 290 if n_hol == 3 else 230
     fnum = _font("Unbounded.ttf", size, "Black")
     b = dr.textbbox((0, 0), str(d.day), font=fnum)
@@ -176,7 +179,7 @@ def render(d: date, sunrise: str = "", sunset: str = "", daylen: str = "", named
     y += 42
     # свята: усі, скільки є; якщо не влазять — зменшуємо шрифт, а в крайньому разі «…та ще N»
     items = [(t, RED) for t in hol["state"]] + [(t, (150, 90, 20)) for t in hol["church"]] + \
-            [(t, NAVY) for t in hol["professional"]]
+            [(t, NAVY) for t in hol["professional"]] + [(t, (40, 110, 90)) for t in hol.get("world", [])]
     bottom = (y1 - 250) if namedays else (y1 - 90)
     hidden = 0
     if items:
