@@ -16,6 +16,7 @@
   DRY_RUN=1      — нічого не надсилати, лише надрукувати пост у лог
   FORCE=morning|weekly|air|news|cinema|fuel|outages|laws|report — примусово зібрати пост зараз (для перевірки)
   ADMIN_CHAT_ID  — ваш особистий чат: сповіщення про збої та щоденний звіт
+  BIRTHDAYS      — дні народження для календаря (JSON, див. build_calendar)
 """
 
 import html
@@ -484,9 +485,24 @@ def build_calendar(now: datetime, w: dict | None) -> tuple[bytes, str]:
     if w:
         sr, ss = w["daily"]["sunrise"][0][-5:], w["daily"]["sunset"][0][-5:]
     names = json.loads((BASE / "namedays.json").read_text(encoding="utf-8")).get(f"{today.month:02d}-{today.day:02d}")
-    png, meta = cc.render(today, sr, ss, day_length(sr, ss), names, CFG["area_name"])
+    # дні народження зберігаються в секреті BIRTHDAYS (не в публічному репозиторії):
+    # {"10-18": {"title": "День народження Мілани", "text": "привітання…"}, …}
+    try:
+        bd = json.loads(os.getenv("BIRTHDAYS", "") or "{}").get(f"{today.month:02d}-{today.day:02d}")
+    except Exception as e:
+        bd = None
+        err("дні народження (секрет BIRTHDAYS)", e)
+    bds = bd if isinstance(bd, list) else [bd] if bd else []
+    # і з holidays.json → "birthdays": {"10-18": "Мілани"} — коротко: «Вітаємо!»
+    who = cc.HOL.get("birthdays", {}).get(f"{today.month:02d}-{today.day:02d}")
+    for n in (who if isinstance(who, list) else [who] if who else []):
+        bds.append({"title": f"День народження {n}", "text": "Вітаємо! 🎉"})
+    png, meta = cc.render(today, sr, ss, day_length(sr, ss), names, CFG["area_name"],
+                          birthdays=[b["title"] for b in bds])
     hol = meta["holidays"]
     cap = [f"🗓 <b>{ua_date(today).capitalize()}, {UA_WEEKDAYS[today.weekday()]}</b>"]
+    for b in bds:
+        cap.append(f"🎂 <b>{esc(b['title'])}!</b> {esc(b.get('text', ''))}".strip())
     lines = ([f"🇺🇦 {esc(h)}" for h in hol["state"]] + [f"⛪️ {esc(h)}" for h in hol["church"]] +
              [f"🛠 {esc(h)}" for h in hol["professional"]] + [f"🌍 {esc(h)}" for h in hol.get("world", [])])
     if lines:
