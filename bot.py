@@ -488,7 +488,7 @@ def build_calendar(now: datetime, w: dict | None) -> tuple[bytes, str]:
     hol = meta["holidays"]
     cap = [f"🗓 <b>{ua_date(today).capitalize()}, {UA_WEEKDAYS[today.weekday()]}</b>"]
     lines = ([f"🇺🇦 {esc(h)}" for h in hol["state"]] + [f"⛪️ {esc(h)}" for h in hol["church"]] +
-             [f"🛠 {esc(h)}" for h in hol["professional"]])
+             [f"🛠 {esc(h)}" for h in hol["professional"]] + [f"🌍 {esc(h)}" for h in hol.get("world", [])])
     if lines:
         cap.append("\n".join(lines))
     ev = safe(history_event, today)
