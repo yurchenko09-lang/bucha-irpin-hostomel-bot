@@ -132,9 +132,10 @@ def _center(draw, y, text, font, fill, W):
 
 
 def render(d: date, sunrise: str = "", sunset: str = "", daylen: str = "", namedays: list | None = None,
-           area: str = "Буча · Ірпінь · Гостомель") -> tuple[bytes, dict]:
+           area: str = "Буча · Ірпінь · Гостомель", birthdays: list | None = None) -> tuple[bytes, dict]:
     W, H = 1080, 1350
     hol = holidays_for(d)
+    hol["birthday"] = list(birthdays or [])          # особисті дні народження (з секрету BIRTHDAYS)
     red = is_red(d, hol)
     accent = RED if red else INK
     im = Image.new("RGB", (W, H), (60, 64, 72))
@@ -154,7 +155,7 @@ def render(d: date, sunrise: str = "", sunset: str = "", daylen: str = "", named
     for x in range(x0 + 10, x1 - 10, 22):
         dr.line((x, y0 + 138, x + 10, y0 + 138), fill=RULE, width=3)
     # число і день тижня
-    n_hol = len(hol["state"]) + len(hol["church"]) + len(hol["professional"]) + len(hol.get("world", []))
+    n_hol = sum(len(hol.get(k, [])) for k in ("birthday", "state", "church", "professional", "world"))
     size = 360 if n_hol <= 2 else 290 if n_hol == 3 else 230
     fnum = _font("Unbounded.ttf", size, "Black")
     b = dr.textbbox((0, 0), str(d.day), font=fnum)
@@ -178,7 +179,7 @@ def render(d: date, sunrise: str = "", sunset: str = "", daylen: str = "", named
     dr.line((x0 + 60, y + 16, x1 - 60, y + 16), fill=RULE, width=3)
     y += 42
     # свята: усі, скільки є; якщо не влазять — зменшуємо шрифт, а в крайньому разі «…та ще N»
-    items = [(t, RED) for t in hol["state"]] + [(t, (150, 90, 20)) for t in hol["church"]] + \
+    items = [(t, (200, 60, 130)) for t in hol.get("birthday", [])] + [(t, RED) for t in hol["state"]] + [(t, (150, 90, 20)) for t in hol["church"]] + \
             [(t, NAVY) for t in hol["professional"]] + [(t, (40, 110, 90)) for t in hol.get("world", [])]
     bottom = (y1 - 250) if namedays else (y1 - 90)
     hidden = 0
