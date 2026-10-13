@@ -118,7 +118,7 @@
       "Укрнафта": "minfin"
     },
     "errs": [
-      "UPG: на сайті знайдено замало цін {}"
+      "UPG: HTTPSConnectionPool(host='upg.ua', port=443): Read timed out. (read timeout=20)"
     ]
   },
   "posts_log": {
