@@ -29,7 +29,7 @@
     "KLO": {
       "А-95": 87.4,
       "ДП": 99.9,
-      "Газ": 48.9
+      "Газ": 49.9
     }
   },
   "last_fuel": "2026-10-16",
@@ -113,21 +113,20 @@
     "src": {
       "WOG": "site",
       "OKKO": "site",
+      "KLO": "site",
       "UPG": "minfin",
-      "KLO": "minfin",
       "Укрнафта": "minfin"
     },
     "errs": [
-      "UPG: HTTPSConnectionPool(host='upg.ua', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<HTTPSConnection(host='upg.ua', port=443) at 0x7f75a4fb8ad0>, 'Connection to upg.ua timed out. (connect timeout=20)'))",
-      "KLO: HTTPSConnectionPool(host='www.klo.ua', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<HTTPSConnection(host='www.klo.ua', port=443) at 0x7f75a4fb8ec0>, 'Connection to www.klo.ua timed out. (connect timeout=20)'))"
+      "UPG: на сайті знайдено замало цін {}"
     ]
   },
   "posts_log": {
     "date": "2026-10-16",
     "items": {
       "ранковий пост": "07:00",
-      "відключення": "08:00",
-      "пальне": "11:30",
+      "відключення": "12:00",
+      "пальне": "12:00",
       "кіно": "10:00"
     }
   },
@@ -137,13 +136,13 @@
       "1.1": "09:30–11:30, 18:00–22:00",
       "1.2": "09:30–11:30, 18:00–22:00",
       "2.1": "09:30–11:30, 18:00–22:00",
-      "2.2": "09:00–11:30, 18:00–22:00",
+      "2.2": "09:00–15:00, 18:00–22:00",
       "3.1": "11:00–15:00",
       "3.2": "11:00–15:00",
       "4.1": "11:00–15:00, 21:30–24:00",
-      "4.2": "11:00–15:00, 21:30–24:00",
+      "4.2": "11:00–18:30, 21:30–24:00",
       "5.1": "06:00–10:00, 14:30–18:30",
-      "5.2": "08:00–10:00, 14:30–18:30",
+      "5.2": "08:00–10:00, 14:30–22:00",
       "6.1": "08:00–10:00, 14:30–18:30",
       "6.2": "14:30–18:30"
     }
