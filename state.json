@@ -165,7 +165,7 @@
       "Укрнафта": "minfin"
     },
     "errs": [
-      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7fbf02347ad0>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f529f297ad0>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
       "UPG: на сайті знайдено замало цін {}"
     ]
   },
