@@ -158,13 +158,14 @@
   "fuel_sources": {
     "date": "2026-10-29",
     "src": {
-      "WOG": "site",
       "OKKO": "site",
       "KLO": "site",
+      "WOG": "minfin",
       "UPG": "minfin",
       "Укрнафта": "minfin"
     },
     "errs": [
+      "WOG: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))",
       "UPG: на сайті знайдено замало цін {}"
     ]
   },
