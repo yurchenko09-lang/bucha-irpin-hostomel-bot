@@ -32,7 +32,7 @@
       "Газ": 57.9
     }
   },
-  "last_fuel": "2026-10-29",
+  "last_fuel": "2026-10-30",
   "last_cinema": "2026-10-29",
   "laws_seen": [
     "1239-2026-п",
@@ -156,17 +156,15 @@
   "last_fuel_post": "2026-10-29",
   "last_weekly": "2026-W44",
   "fuel_sources": {
-    "date": "2026-10-29",
+    "date": "2026-10-30",
     "src": {
       "OKKO": "site",
-      "KLO": "site",
-      "WOG": "minfin",
-      "UPG": "minfin",
-      "Укрнафта": "minfin"
+      "KLO": "site"
     },
     "errs": [
-      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f568ac9f3e0>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
-      "UPG: на сайті знайдено замало цін {}"
+      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7fa34b013800>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "UPG: на сайті знайдено замало цін {}",
+      "Мінфін: 404 Client Error: Not Found for url: https://index.minfin.com.ua/ua/markets/fuel/tm/"
     ]
   },
   "posts_log": {
