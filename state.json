@@ -165,7 +165,7 @@
       "Укрнафта": "minfin"
     },
     "errs": [
-      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f4f06d4bb30>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f210fbbba70>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
       "UPG: на сайті знайдено замало цін {}"
     ]
   },
@@ -174,7 +174,8 @@
     "items": {
       "ранковий пост": "07:00",
       "кіно": "10:00",
-      "пальне": "19:00"
+      "пальне": "19:00",
+      "відключення": "20:30"
     }
   },
   "last_fuel_evening": "2026-10-30",
@@ -183,7 +184,7 @@
       "1.1": "08:00–11:30, 18:00–22:00",
       "1.2": "07:30–11:30, 12:00–15:00, 18:00–22:00",
       "2.1": "07:30–11:30, 18:00–22:00",
-      "2.2": "07:30–11:30, 18:00–21:00",
+      "2.2": "07:30–11:30, 18:00–22:00",
       "3.1": "11:00–18:30",
       "3.2": "11:00–15:00, 21:30–24:00",
       "4.1": "11:00–15:00, 21:30–24:00",
