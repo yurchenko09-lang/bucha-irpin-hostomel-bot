@@ -158,14 +158,15 @@
   "fuel_sources": {
     "date": "2026-10-30",
     "src": {
-      "OKKO": "site",
       "KLO": "site",
       "WOG": "minfin",
+      "OKKO": "minfin",
       "UPG": "minfin",
       "Укрнафта": "minfin"
     },
     "errs": [
-      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f8a29d1f260>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7fc8928954c0>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "OKKO: Expecting value: line 1 column 1 (char 0)",
       "UPG: на сайті знайдено замало цін {}"
     ]
   },
@@ -175,7 +176,7 @@
       "ранковий пост": "07:00",
       "кіно": "10:00",
       "пальне": "19:00",
-      "відключення": "21:00"
+      "відключення": "21:28"
     }
   },
   "last_fuel_evening": "2026-10-30",
@@ -200,10 +201,10 @@
       "2.1": "06:00–08:30, 15:00–19:00",
       "2.2": "15:00–19:00",
       "3.1": "08:00–12:00, 18:30–22:30",
-      "3.2": "08:00–12:00, 15:00–15:30, 18:30–22:30",
+      "3.2": "08:00–12:00, 18:30–22:30",
       "4.1": "10:00–12:00, 13:00–15:30, 18:30–21:00",
       "4.2": "08:00–12:00, 18:30–22:30",
-      "5.1": "11:30–15:30, 18:30–19:00, 22:00–24:00",
+      "5.1": "11:30–15:30, 22:00–24:00",
       "5.2": "11:30–15:30, 22:00–24:00",
       "6.1": "11:30–19:00",
       "6.2": "11:30–15:30, 22:00–24:00"
