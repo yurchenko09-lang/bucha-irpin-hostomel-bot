@@ -19,7 +19,7 @@
     "WOG": {
       "А-95": 92.9,
       "ДП": 106.9,
-      "Газ": 58.9
+      "Газ": 59.9
     },
     "OKKO": {
       "А-95": 92.9,
@@ -153,7 +153,7 @@
       "Газ": 45.5
     }
   },
-  "last_fuel_post": "2026-10-29",
+  "last_fuel_post": "2026-10-30",
   "last_weekly": "2026-W44",
   "fuel_sources": {
     "date": "2026-10-30",
@@ -165,7 +165,7 @@
       "Укрнафта": "minfin"
     },
     "errs": [
-      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f74b822be90>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f56ef69bad0>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
       "UPG: на сайті знайдено замало цін {}"
     ]
   },
@@ -173,7 +173,8 @@
     "date": "2026-10-30",
     "items": {
       "ранковий пост": "07:00",
-      "кіно": "10:00"
+      "кіно": "10:00",
+      "пальне": "14:00"
     }
   },
   "last_fuel_evening": "2026-10-29",
