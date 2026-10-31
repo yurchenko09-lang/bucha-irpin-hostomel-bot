@@ -32,7 +32,7 @@
       "Газ": 57.9
     }
   },
-  "last_fuel": "2026-10-30",
+  "last_fuel": "2026-10-31",
   "last_cinema": "2026-10-30",
   "laws_seen": [
     "1239-2026-п",
@@ -156,16 +156,17 @@
   "last_fuel_post": "2026-10-30",
   "last_weekly": "2026-W44",
   "fuel_sources": {
-    "date": "2026-10-30",
+    "date": "2026-10-31",
     "src": {
-      "OKKO": "site",
       "KLO": "site",
       "WOG": "minfin",
+      "OKKO": "minfin",
       "UPG": "minfin",
       "Укрнафта": "minfin"
     },
     "errs": [
-      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7fa78c8a3ce0>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "WOG: Expecting value: line 1 column 1 (char 0)",
+      "OKKO: Expecting value: line 1 column 1 (char 0)",
       "UPG: на сайті знайдено замало цін {}"
     ]
   },
