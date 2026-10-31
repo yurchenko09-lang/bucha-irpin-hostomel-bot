@@ -165,7 +165,7 @@
       "Укрнафта": "minfin"
     },
     "errs": [
-      "WOG: Expecting value: line 1 column 1 (char 0)",
+      "WOG: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))",
       "OKKO: Expecting value: line 1 column 1 (char 0)",
       "UPG: на сайті знайдено замало цін {}"
     ]
