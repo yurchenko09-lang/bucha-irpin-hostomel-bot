@@ -158,13 +158,13 @@
   "fuel_sources": {
     "date": "2026-11-02",
     "src": {
-      "OKKO": "site",
       "KLO": "site"
     },
     "errs": [
       "WOG: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))",
+      "OKKO: Expecting value: line 1 column 1 (char 0)",
       "UPG: на сайті знайдено замало цін {}",
-      "Мінфін: 404 Client Error: Not Found for url: https://index.minfin.com.ua/ua/markets/fuel/tm/"
+      "Мінфін: 500 Server Error: Internal Server Error for url: https://index.minfin.com.ua/ua/markets/fuel/tm/"
     ]
   },
   "posts_log": {
