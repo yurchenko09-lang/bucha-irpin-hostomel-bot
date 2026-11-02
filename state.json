@@ -29,7 +29,7 @@
     "KLO": {
       "А-95": 87.9,
       "ДП": 105.9,
-      "Газ": 58.9
+      "Газ": 59.5
     }
   },
   "last_fuel": "2026-11-02",
@@ -158,13 +158,16 @@
   "fuel_sources": {
     "date": "2026-11-02",
     "src": {
-      "KLO": "site"
+      "KLO": "site",
+      "WOG": "minfin",
+      "OKKO": "minfin",
+      "UPG": "minfin",
+      "Укрнафта": "minfin"
     },
     "errs": [
-      "WOG: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))",
+      "WOG: Expecting value: line 1 column 1 (char 0)",
       "OKKO: Expecting value: line 1 column 1 (char 0)",
-      "UPG: на сайті знайдено замало цін {}",
-      "Мінфін: 500 Server Error: Internal Server Error for url: https://index.minfin.com.ua/ua/markets/fuel/tm/"
+      "UPG: на сайті знайдено замало цін {}"
     ]
   },
   "posts_log": {
@@ -172,7 +175,7 @@
     "items": {
       "ранковий пост": "07:00",
       "тижнева статистика": "09:00",
-      "пальне": "09:00",
+      "пальне": "12:00",
       "відключення": "09:30",
       "кіно": "10:00"
     }
