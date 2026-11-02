@@ -158,11 +158,11 @@
   "fuel_sources": {
     "date": "2026-11-02",
     "src": {
-      "OKKO": "site",
       "KLO": "site"
     },
     "errs": [
-      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f564a3109b0>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "WOG: HTTPSConnectionPool(host='api.wog.ua', port=443): Max retries exceeded with url: /fuel_stations/1145 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.wog.ua', port=443) at 0x7f7c9ab53ad0>, 'Connection to api.wog.ua timed out. (connect timeout=20)'))",
+      "OKKO: Expecting value: line 1 column 1 (char 0)",
       "UPG: на сайті знайдено замало цін {}",
       "Мінфін: 404 Client Error: Not Found for url: https://index.minfin.com.ua/ua/markets/fuel/tm/"
     ]
@@ -172,24 +172,25 @@
     "items": {
       "ранковий пост": "07:00",
       "тижнева статистика": "09:00",
-      "пальне": "09:00"
+      "пальне": "09:00",
+      "відключення": "09:30"
     }
   },
   "last_fuel_evening": "2026-11-01",
   "outages": {
     "2026-11-02": {
       "1.1": "09:00–13:00, 19:30–24:00",
-      "1.2": "09:00–13:00, 19:30–24:00",
-      "2.1": "09:00–13:00, 19:30–24:00",
-      "2.2": "12:00–16:30, 19:30–21:00",
-      "3.1": "12:30–20:00",
-      "3.2": "12:30–16:30",
-      "4.1": "12:30–16:30",
-      "4.2": "12:30–16:30",
-      "5.1": "06:00–09:30, 16:00–20:00",
-      "5.2": "06:00–09:30, 16:00–21:00",
-      "6.1": "06:00–09:30, 16:00–20:00",
-      "6.2": "09:00–13:00, 16:00–20:00"
+      "1.2": "09:00–16:00, 19:30–24:00",
+      "2.1": "09:00–16:00, 19:30–24:00",
+      "2.2": "12:00–16:00, 19:30–23:00",
+      "3.1": "12:30–19:30",
+      "3.2": "12:30–19:30",
+      "4.1": "12:30–16:30, 23:00–24:00",
+      "4.2": "12:30–19:30, 23:00–24:00",
+      "5.1": "06:00–09:00, 16:00–23:00",
+      "5.2": "06:00–12:30, 16:00–21:00",
+      "6.1": "06:00–12:30, 16:00–19:30",
+      "6.2": "09:00–12:30, 16:00–21:00"
     }
   }
 }
