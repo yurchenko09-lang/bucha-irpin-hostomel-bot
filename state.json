@@ -32,7 +32,7 @@
       "Газ": 60.5
     }
   },
-  "last_fuel": "2026-11-03",
+  "last_fuel": "2026-11-04",
   "last_cinema": "2026-11-03",
   "laws_seen": [
     "1239-2026-п",
@@ -156,7 +156,7 @@
   "last_fuel_post": "2026-11-03",
   "last_weekly": "2026-W45",
   "fuel_sources": {
-    "date": "2026-11-03",
+    "date": "2026-11-04",
     "src": {
       "OKKO": "site",
       "KLO": "site",
