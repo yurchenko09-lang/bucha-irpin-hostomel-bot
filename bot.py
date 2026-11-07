@@ -1080,6 +1080,18 @@ def _out_line(hours: dict) -> str:
     return ", ".join(parts)
 
 
+def _light(v: str) -> str:
+    """Скільки годин зі світлом за добу (можливі відключення не віднімаємо) → «💡 21,5 год · »."""
+    off = 0
+    for part in v.split(", "):
+        m = re.fullmatch(r"(\d\d):(\d\d)–(\d\d):(\d\d)", part)
+        if m:
+            a, b = int(m[1]) * 60 + int(m[2]), int(m[3]) * 60 + int(m[4])
+            off += b - a
+    h = (24 * 60 - off) / 60
+    return (f"💡 {h:g}".replace(".", ",") + " год · ") if off else ""
+
+
 def get_outages(oc: dict, now: datetime) -> tuple[dict, str]:
     """→ ({"2026-10-07": {"1.1": "15:00–17:30", "1.2": ""}}, "07.10.2026 11:43"). Порожній рядок — без відключень."""
     r = HTTP.get(oc["url"], timeout=TIMEOUT)
@@ -1101,7 +1113,7 @@ def build_outages(d: date, now: datetime, sched: dict, upd: str, prev: dict | No
     title = f"{when}, {ua_date(d)}" if when else ua_date(d)
     if prev is None:
         head = f"💡 <b>Графік відключень на {title}</b>"
-        rows = [f"<code>{q}</code>  {v or 'без відключень'}" for q, v in sched.items()]
+        rows = [f"<code>{q}</code>  {_light(v)}{v or 'без відключень'}" for q, v in sched.items()]
     elif not any(sched.values()):
         head = f"💡 <b>Графіки відключень на {when or title} скасовано</b>"
         rows = []
@@ -1112,7 +1124,7 @@ def build_outages(d: date, now: datetime, sched: dict, upd: str, prev: dict | No
             hours = v or "без відключень"
             if prev.get(q, "") != v:
                 hours = f"<b>{hours}</b>"                                    # змінені черги — жирним
-            rows.append(f"<code>{q}</code>  {hours}")
+            rows.append(f"<code>{q}</code>  {_light(v)}{hours}")
         rows += ["", "<b>Жирним</b> — черги, для яких години змінились."]
     foot = "Буча · Ірпінь · Гостомель — графік за чергами однаковий для всієї області.\n"
     foot += f"Дані ДТЕК{', оновлено ' + upd[:16] if upd else ''}. Свою чергу шукайте за адресою на " \
