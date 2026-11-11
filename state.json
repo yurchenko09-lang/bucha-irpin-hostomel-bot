@@ -158,14 +158,15 @@
   "fuel_sources": {
     "date": "2026-11-11",
     "src": {
-      "OKKO": "site",
       "KLO": "site",
       "WOG": "minfin",
+      "OKKO": "minfin",
       "UPG": "minfin",
       "Укрнафта": "minfin"
     },
     "errs": [
       "WOG: Expecting value: line 1 column 1 (char 0)",
+      "OKKO: Expecting value: line 1 column 1 (char 0)",
       "UPG: на сайті знайдено замало цін {}"
     ]
   },
