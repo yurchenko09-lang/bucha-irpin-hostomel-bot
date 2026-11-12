@@ -125,10 +125,10 @@ def mark_posted(state: dict, name: str, now: datetime) -> None:
     state["posts_log"] = log
 
 
-def send_photo(png: bytes, caption: str) -> None:
+def send_photo(png: bytes, caption: str, name: str = "calendar_preview.png") -> None:
     if DRY_RUN:
-        (BASE / "calendar_preview.png").write_bytes(png)
-        print("──── DRY RUN: фото (calendar_preview.png) ────")
+        (BASE / name).write_bytes(png)
+        print(f"──── DRY RUN: фото ({name}) ────")
         print(caption)
         print("──────────────────────")
         return
@@ -1092,6 +1092,9 @@ def _light(v: str) -> str:
     return (f"💡 {h:g}".replace(".", ",") + " год · ") if off else ""
 
 
+OUT_RAW: dict = {}          # сирі дані по годинах (для картинки), заповнює get_outages
+
+
 def get_outages(oc: dict, now: datetime) -> tuple[dict, str]:
     """→ ({"2026-10-07": {"1.1": "15:00–17:30", "1.2": ""}}, "07.10.2026 11:43"). Порожній рядок — без відключень."""
     r = HTTP.get(oc["url"], timeout=TIMEOUT)
@@ -1105,6 +1108,7 @@ def get_outages(oc: dict, now: datetime) -> tuple[dict, str]:
     for ts, groups in (fact.get("data") or {}).items():
         day = datetime.fromtimestamp(int(ts), TZ).date().isoformat()
         days[day] = {q.replace("GPV", ""): _out_line(h) for q, h in sorted(groups.items())}
+        OUT_RAW[day] = {q.replace("GPV", ""): h for q, h in groups.items()}
     return days, str(fact.get("update") or "")
 
 
@@ -1132,6 +1136,22 @@ def build_outages(d: date, now: datetime, sched: dict, upd: str, prev: dict | No
     return head + ("\n\n" + "\n".join(rows) if rows else "") + "\n\n" + foot
 
 
+def send_outages(d: date, now: datetime, sched: dict, upd: str, prev: dict | None = None) -> None:
+    """Пост про графік: картинкою (якщо ввімкнено outages.image) з текстом у підписі."""
+    text = build_outages(d, now, sched, upd, prev)
+    raw = OUT_RAW.get(d.isoformat())
+    if not CFG["outages"].get("image", True) or not raw or (prev is not None and not any(sched.values())):
+        send(text)                                    # «скасовано» — без картинки
+        return
+    import outage_card
+    changed = {q for q, v in sched.items() if prev is not None and prev.get(q, "") != v}
+    title = "Графік відключень змінено" if prev is not None else "Графік відключень"
+    png = outage_card.render(d, raw, title, upd, changed, CFG["area_name"])
+    if len(text) > 1000:                              # ліміт підпису до фото — 1024 символи
+        text = text.split("\n\n")[0] + "\n\n" + text.split("\n\n")[-1]
+    send_photo(png, text, f"outages_preview_{d.isoformat()}.png")
+
+
 def run_outages(state: dict, now: datetime) -> None:
     oc = CFG["outages"]
     days, upd = get_outages(oc, now)
@@ -1139,7 +1159,7 @@ def run_outages(state: dict, now: datetime) -> None:
     if FORCE == "outages":
         for d in (today, tomorrow):
             if d.isoformat() in days:
-                send(build_outages(d, now, days[d.isoformat()], upd))
+                send_outages(d, now, days[d.isoformat()], upd)
         return
     st = {k: v for k, v in (state.get("outages") or {}).items() if k >= today.isoformat()}
     for d in (today, tomorrow):
@@ -1156,12 +1176,12 @@ def run_outages(state: dict, now: datetime) -> None:
                 if d == today:
                     st[key] = sched          # сьогодні без відключень — мовчимо, але стежимо за змінами
                 continue
-            send(build_outages(d, now, sched, upd))
+            send_outages(d, now, sched, upd)
         elif prev != sched:
             if not oc.get("changes", True):
                 st[key] = sched
                 continue
-            send(build_outages(d, now, sched, upd, prev))
+            send_outages(d, now, sched, upd, prev)
         else:
             continue
         st[key] = sched

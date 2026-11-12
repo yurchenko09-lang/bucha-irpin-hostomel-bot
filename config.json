@@ -307,6 +307,7 @@
     "from_hour": 6,
     "to_hour": 23,
     "tomorrow_hour": 18,
-    "changes": true
+    "changes": true,
+    "image": true
   }
 }
