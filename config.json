@@ -309,5 +309,11 @@
     "tomorrow_hour": 18,
     "changes": true,
     "image": true
+  },
+  "jokes": {
+    "enabled": true,
+    "hour": 20,
+    "latest_hour": 23,
+    "file": "jokes.json"
   }
 }

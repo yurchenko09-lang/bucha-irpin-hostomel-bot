@@ -14,7 +14,7 @@
   CHAT_ID        — куди публікувати: @назва_каналу, або ваш числовий ID для тестів
   ALERTS_TOKEN   — токен alerts.in.ua (необов'язково: без нього блок тривог пропускається)
   DRY_RUN=1      — нічого не надсилати, лише надрукувати пост у лог
-  FORCE=morning|weekly|air|news|cinema|fuel|outages|laws|report — примусово зібрати пост зараз (для перевірки)
+  FORCE=morning|weekly|air|news|cinema|fuel|outages|jokes|laws|report — примусово зібрати пост зараз (для перевірки)
   ADMIN_CHAT_ID  — ваш особистий чат: сповіщення про збої та щоденний звіт
   BIRTHDAYS      — дні народження для календаря (JSON, див. build_calendar)
 """
@@ -1191,6 +1191,38 @@ def run_outages(state: dict, now: datetime) -> None:
     state["outages"] = st
 
 
+
+# ───────────────────────────── анекдот дня ─────────────────────────────
+# Анекдоти — у jokes.json (порядок уже перемішано так, щоб схожі не йшли поруч).
+# Ідемо по черзі без повторів; коли список закінчиться — публікації припиняються, доки не допишете нові.
+# У дні з відключеннями першими беремо жарти про світло (light: true), в інші дні їх бережемо.
+
+def pick_joke(state: dict, now: datetime) -> dict | None:
+    jokes = json.loads((BASE / CFG["jokes"].get("file", "jokes.json")).read_text(encoding="utf-8"))
+    used = set(state.get("jokes_used") or [])
+    avail = [j for j in jokes if j["id"] not in used]
+    if not avail:                                       # усе вже було — не повторюємо, просто мовчимо
+        return None
+    dark = any((state.get("outages") or {}).get(now.date().isoformat(), {}).values())
+    pref = [j for j in avail if j.get("light") == dark]
+    return (pref or avail)[0] if avail else None
+
+
+def run_jokes(state: dict, now: datetime) -> None:
+    j = pick_joke(state, now)
+    if not j:
+        print("· анекдоти закінчились — допишіть нові в jokes.json")
+        return
+    send(f"😄 <b>Анекдот дня</b>\n\n{esc(j['text'])}")
+    if not FORCE:
+        used = set(state.get("jokes_used") or [])
+        state["jokes_used"] = sorted(used | {j["id"]})
+        state["last_joke"] = now.date().isoformat()
+        if not DRY_RUN:
+            mark_posted(state, "анекдот", now)
+    print(f"✓ анекдот №{j['id']}")
+
+
 # ───────────────────── укази й постанови ─────────────────────
 
 def _walk_records(obj, out):
@@ -1540,6 +1572,17 @@ def main() -> int:
         except Exception as e:
             errors += 1
             err("відключення", e)
+
+    # 6б. Анекдот дня
+    jc = CFG.get("jokes", {})
+    due = (not FORCE and jc.get("enabled") and jc["hour"] <= now.hour < jc.get("latest_hour", 23)
+           and state.get("last_joke") != today)
+    if FORCE == "jokes" or due:
+        try:
+            run_jokes(state, now)
+        except Exception as e:
+            errors += 1
+            err("анекдот", e)
 
     # 7. Укази й постанови (щотижневий дайджест)
     lc = CFG.get("laws", {})
