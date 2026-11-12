@@ -96,11 +96,33 @@ def render(d: date, raw: dict, title: str, updated: str = "", changed: set | Non
         mask = Image.new("L", (bw, bh), 0)
         ImageDraw.Draw(mask).rounded_rectangle((0, 0, bw - 1, bh - 1), radius=10, fill=255)
         img.paste(bar, (int(x0), by0), mask)
-        # точні години під смугою
-        txt = ", ".join(f"{_hm(a)}–{_hm(b)}" for a, b in off)
-        if maybe:
-            txt += ("; " if txt else "") + "можливо " + ", ".join(f"{_hm(a)}–{_hm(b)}" for a, b in maybe)
-        dr.text((x0 + 2, by1 + 6), txt or "без відключень", font=f_t, fill=INK if off else MUTED, anchor="la")
+        # години відключення — під своїм відрізком (якщо підписи налазять — розсуваємо)
+        labels = [(f"{_hm(a)}–{_hm(b)}", a, b, INK) for a, b in off] + \
+                 [(f"? {_hm(a)}–{_hm(b)}", a, b, MUTED) for a, b in maybe]
+        labels.sort(key=lambda t: t[1])
+        if not labels:
+            dr.text(((x0 + x1) / 2, by1 + 6), "без відключень", font=f_t, fill=MUTED, anchor="ma")
+        else:
+            boxes = []
+            for t, a, b, col in labels:
+                w = dr.textlength(t, font=f_t)
+                lx = (px(a) + px(b)) / 2 - w / 2                   # по центру відрізка
+                lx = max(x0, min(lx, x1 - w))
+                if boxes and lx < boxes[-1][1] + 14:                # налазить на попередній — зсуваємо праворуч
+                    lx = boxes[-1][1] + 14
+                boxes.append([lx, lx + w, t, col])
+            if boxes[-1][1] > x1:                                   # вилізли за правий край — зсуваємо ліворуч
+                d_ = boxes[-1][1] - x1
+                boxes[-1][0] -= d_; boxes[-1][1] -= d_
+                for i in range(len(boxes) - 2, -1, -1):
+                    if boxes[i][1] > boxes[i + 1][0] - 14:
+                        d_ = boxes[i][1] - (boxes[i + 1][0] - 14)
+                        boxes[i][0] -= d_; boxes[i][1] -= d_
+            if boxes[0][0] < x0:                                    # не вміщуються під відрізками — звичайним рядком
+                txt = ", ".join(t for t, *_ in labels)
+                boxes = [[x0, x1, txt, INK]]
+            for lx, rx, t, col in boxes:
+                dr.text((lx, by1 + 6), t, font=f_t, fill=col, anchor="la")
         # години зі світлом
         light = (1440 - sum(b - a for a, b in off)) / 60
         dr.text((x1 + 82, by0 + 4), f"{light:g}".replace(".", ","), font=f_h, fill=INK, anchor="ma")
