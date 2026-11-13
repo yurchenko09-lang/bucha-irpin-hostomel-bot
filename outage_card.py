@@ -43,7 +43,7 @@ def render(d: date, raw: dict, title: str, updated: str = "", changed: set | Non
     changed = changed or set()
     queues = sorted(raw, key=lambda q: [int(x) for x in q.split(".")])
     W = 1080
-    top, row_h, axis_h = 250, 84, 50
+    top, row_h, axis_h = 250, 92, 50
     H = top + axis_h + row_h * len(queues) + 150
     img = Image.new("RGB", (W, H), PAPER)
     dr = ImageDraw.Draw(img)
@@ -59,7 +59,7 @@ def render(d: date, raw: dict, title: str, updated: str = "", changed: set | Non
     px = lambda m: x0 + (x1 - x0) * m / 1440   # хвилини → пікселі
     f_ax = _font("Montserrat.ttf", 22, "SemiBold")
     f_q = _font("Unbounded.ttf", 30, "Bold")
-    f_t = _font("Montserrat.ttf", 21, "Medium")
+    f_t = _font("Montserrat.ttf", 27, "SemiBold")
     f_h = _font("Unbounded.ttf", 28, "Bold")
     f_hs = _font("Montserrat.ttf", 18, "SemiBold")
 
@@ -91,8 +91,13 @@ def render(d: date, raw: dict, title: str, updated: str = "", changed: set | Non
             bar.paste(tile, (int(bx(a)), 0))
         for a, b in off:
             bd.rectangle((bx(a), 0, bx(b), bh), fill=DARK)
-        for h in range(3, 24, 3):                                          # тонкі поділки
-            bd.line((bx(h * 60), 3, bx(h * 60), bh - 3), fill=PAPER, width=1)
+        # поділки щогодини (напівпрозорі), кожні 3 год — помітніші
+        ov = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+        od = ImageDraw.Draw(ov)
+        for h in range(1, 24):
+            x = bx(h * 60)
+            od.line((x, 0, x, bh), fill=(255, 255, 255, 170 if h % 3 == 0 else 80), width=2 if h % 3 == 0 else 1)
+        bar = Image.alpha_composite(bar.convert("RGBA"), ov).convert("RGB")
         mask = Image.new("L", (bw, bh), 0)
         ImageDraw.Draw(mask).rounded_rectangle((0, 0, bw - 1, bh - 1), radius=10, fill=255)
         img.paste(bar, (int(x0), by0), mask)
@@ -121,8 +126,21 @@ def render(d: date, raw: dict, title: str, updated: str = "", changed: set | Non
             if boxes[0][0] < x0:                                    # не вміщуються під відрізками — звичайним рядком
                 txt = ", ".join(t for t, *_ in labels)
                 boxes = [[x0, x1, txt, INK]]
+            ft = f_t
+            if len(boxes) == 1:                                     # довгий рядок — зменшуємо шрифт, щоб умістився
+                for sz in (27, 24, 21, 19):
+                    ft = _font("Montserrat.ttf", sz, "SemiBold")
+                    if dr.textlength(boxes[0][2], font=ft) <= x1 - x0:
+                        break
+            if len(boxes) == 1 and dr.textlength(boxes[0][2], font=ft) > x1 - x0:
+                # зовсім багато відрізків — у два рядки дрібнішим шрифтом
+                parts, half = boxes[0][2].split(", "), None
+                half = (len(parts) + 1) // 2
+                dr.text((x0, by1 + 4), ", ".join(parts[:half]) + ",", font=ft, fill=INK, anchor="la")
+                dr.text((x0, by1 + 26), ", ".join(parts[half:]), font=ft, fill=INK, anchor="la")
+                boxes = []
             for lx, rx, t, col in boxes:
-                dr.text((lx, by1 + 6), t, font=f_t, fill=col, anchor="la")
+                dr.text((lx, by1 + 6), t, font=ft, fill=col, anchor="la")
         # години зі світлом
         light = (1440 - sum(b - a for a, b in off)) / 60
         dr.text((x1 + 82, by0 + 4), f"{light:g}".replace(".", ","), font=f_h, fill=INK, anchor="ma")
