@@ -33,7 +33,7 @@
     }
   },
   "last_fuel": "2026-11-13",
-  "last_cinema": "2026-11-12",
+  "last_cinema": "2026-11-13",
   "laws_seen": [
     "1239-2026-п",
     "1151-2026-п",
@@ -166,13 +166,14 @@
     },
     "errs": [
       "WOG: Expecting value: line 1 column 1 (char 0)",
-      "UPG: на сайті знайдено замало цін {}"
+      "UPG: HTTPSConnectionPool(host='upg.ua', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<HTTPSConnection(host='upg.ua', port=443) at 0x7f85b3a8edb0>, 'Connection to upg.ua timed out. (connect timeout=20)'))"
     ]
   },
   "posts_log": {
     "date": "2026-11-13",
     "items": {
-      "ранковий пост": "07:00"
+      "ранковий пост": "07:00",
+      "кіно": "10:02"
     }
   },
   "last_fuel_evening": "2026-11-12",
