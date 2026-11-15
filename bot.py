@@ -1147,7 +1147,9 @@ def send_outages(d: date, now: datetime, sched: dict, upd: str, prev: dict | Non
     changed = {q for q, v in sched.items() if prev is not None and prev.get(q, "") != v}
     title = "Графік відключень змінено" if prev is not None else "Графік відключень"
     png = outage_card.render(d, raw, title, upd, changed, CFG["area_name"])
-    if len(text) > 1000:                              # ліміт підпису до фото — 1024 символи
+    # під картинкою — лише заголовок і рядок про дані: усі години вже на картинці.
+    # Щоб повернути повний список годин у підписі — config.json → outages → "caption": "full"
+    if CFG["outages"].get("caption", "short") != "full" or len(text) > 1000:   # ліміт підпису — 1024 символи
         text = text.split("\n\n")[0] + "\n\n" + text.split("\n\n")[-1]
     send_photo(png, text, f"outages_preview_{d.isoformat()}.png")
 
