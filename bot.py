@@ -14,7 +14,7 @@
   CHAT_ID        — куди публікувати: @назва_каналу, або ваш числовий ID для тестів
   ALERTS_TOKEN   — токен alerts.in.ua (необов'язково: без нього блок тривог пропускається)
   DRY_RUN=1      — нічого не надсилати, лише надрукувати пост у лог
-  FORCE=morning|weekly|air|news|cinema|fuel|outages|jokes|laws|report — примусово зібрати пост зараз (для перевірки)
+  FORCE=morning|weekly|air|news|cinema|fuel|outages|jokes|traffic|laws|report — примусово зібрати пост зараз (для перевірки)
   ADMIN_CHAT_ID  — ваш особистий чат: сповіщення про збої та щоденний звіт
   BIRTHDAYS      — дні народження для календаря (JSON, див. build_calendar)
 """
@@ -1225,6 +1225,45 @@ def run_jokes(state: dict, now: datetime) -> None:
     print(f"✓ анекдот №{j['id']}")
 
 
+
+# ───────────────────────────── дорога до Києва (TomTom) ─────────────────────────────
+# Час у дорозі з урахуванням заторів. Ключ — секрет TOMTOM_KEY (безкоштовний план Freemium).
+TOMTOM_KEY = os.getenv("TOMTOM_KEY", "").strip()
+
+
+def tomtom_route(a: str, b: str) -> dict:
+    url = f"https://api.tomtom.com/routing/1/calculateRoute/{a}:{b}/json"
+    r = HTTP.get(url, params={"key": TOMTOM_KEY, "traffic": "true", "computeTravelTimeFor": "all",
+                              "departAt": "now", "routeType": "fastest"}, timeout=TIMEOUT)
+    if r.status_code != 200:
+        raise RuntimeError(f"TomTom {r.status_code}: {r.text[:200]}")
+    return r.json()["routes"][0]["summary"]
+
+
+def build_traffic(now: datetime, rows: list) -> str:
+    lines = []
+    for name, s in rows:
+        t = round(s["travelTimeInSeconds"] / 60)
+        delay = round(s.get("trafficDelayInSeconds", 0) / 60)
+        lines.append(f"• {esc(name)}: <b>{t} хв</b>" + (f" (+{delay} через затори)" if delay >= 2 else " — без заторів"))
+    return f"🚗 <b>Дорога до Києва</b> · {now:%H:%M}\n\n" + "\n".join(lines)
+
+
+def run_traffic(state: dict, now: datetime) -> None:
+    if not TOMTOM_KEY:
+        raise RuntimeError("немає секрету TOMTOM_KEY")
+    rows = []
+    for rt in CFG["traffic"]["routes"]:
+        s = tomtom_route(rt["from"], rt["to"])
+        rows.append((rt["name"], s))
+        if FORCE == "traffic":       # тест: усе, що віддав TomTom
+            print(f"[traffic] {rt['name']}: {s.get('lengthInMeters')} м, зараз {s.get('travelTimeInSeconds')} с, "
+                  f"затримка {s.get('trafficDelayInSeconds')} с, без заторів {s.get('noTrafficTravelTimeInSeconds')} с, "
+                  f"історично {s.get('historicTrafficTravelTimeInSeconds')} с, live {s.get('liveTrafficIncidentsTravelTimeInSeconds')} с")
+    send(build_traffic(now, rows))
+    print("✓ дорога")
+
+
 # ───────────────────── укази й постанови ─────────────────────
 
 def _walk_records(obj, out):
@@ -1585,6 +1624,19 @@ def main() -> int:
         except Exception as e:
             errors += 1
             err("анекдот", e)
+
+    # 6в. Дорога до Києва (поки лише ручна перевірка: force=traffic)
+    tc = CFG.get("traffic", {})
+    due = (not FORCE and tc.get("enabled") and now.weekday() < 5 and now.hour in tc.get("hours", [])
+           and state.get("last_traffic") != today + now.strftime("%H"))
+    if FORCE == "traffic" or due:
+        try:
+            run_traffic(state, now)
+            if not FORCE:
+                state["last_traffic"] = today + now.strftime("%H")
+        except Exception as e:
+            errors += 1
+            err("дорога", e)
 
     # 7. Укази й постанови (щотижневий дайджест)
     lc = CFG.get("laws", {})
