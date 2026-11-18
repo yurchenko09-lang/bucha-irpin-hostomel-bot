@@ -12,7 +12,7 @@ on:
       force:
         description: "Примусово зібрати пост"
         type: choice
-        options: [none, morning, weekly, air, news, cinema, fuel, outages, laws, report]
+        options: [none, morning, weekly, air, news, cinema, fuel, outages, jokes, traffic, laws, report]
         default: none
       dry_run:
         description: "Лише показати в лозі, не надсилати"
@@ -47,6 +47,7 @@ jobs:
           ALERTS_TOKEN: ${{ secrets.ALERTS_TOKEN }}
           ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
           BIRTHDAYS: ${{ secrets.BIRTHDAYS }}
+          TOMTOM_KEY: ${{ secrets.TOMTOM_KEY }}
           FORCE: ${{ github.event.inputs.force != 'none' && github.event.inputs.force || '' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
         run: python bot.py
